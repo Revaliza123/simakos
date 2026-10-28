@@ -24,6 +24,20 @@ class DashboardController extends Controller
         return view('dashboard.overview', $this->sharedData('overview'));
     }
 
+    public function tenantOverview(): View
+    {
+        return view('tenant.overview', [
+            'activeMenu' => 'tenant-overview',
+            'tenant' => [
+                'name' => 'Dimas Arya',
+                'email' => 'dimas.arya@email.com',
+                'room' => '204',
+                'floor' => 'Lt. 2',
+                'lease_end' => '31 Des 2026',
+            ],
+        ]);
+    }
+
     public function rooms(): View
     {
         $data = $this->sharedData('rooms');
@@ -216,7 +230,46 @@ class DashboardController extends Controller
 
     public function settings(): View
     {
-        return view('dashboard.settings', $this->sharedData('settings'));
+        return redirect()->route('administrator');
+    }
+
+    public function administrator(): View
+    {
+        return view('dashboard.administrator', [
+            'activeMenu' => 'administrator',
+            'pageTitles' => ['administrator' => ['Administrator', 'Kelola profil administrator dan pengaturan sistem']],
+        ]);
+    }
+
+    public function users(): View
+    {
+        return view('dashboard.users', [
+            'activeMenu' => 'administrator-users',
+            'pageTitles' => ['administrator-users' => ['User Management', 'Kelola akun admin dan penghuni SIMAKOS']],
+            'users' => User::latest()->get(),
+        ]);
+    }
+
+    public function createUser(): View
+    {
+        return view('dashboard.forms.user', [
+            'activeMenu' => 'administrator-users',
+            'pageTitles' => ['administrator-users' => ['User Management', 'Tambah akun baru ke dalam SIMAKOS']],
+        ]);
+    }
+
+    public function storeUser(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'role' => ['required', 'in:admin,tenant'],
+        ]);
+
+        User::create($validated);
+
+        return redirect()->route('administrator.users')->with('status', 'User berhasil ditambahkan.');
     }
 
     public function updateSettings(Request $request): RedirectResponse

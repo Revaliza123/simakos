@@ -1,0 +1,6 @@
+@extends('layouts.app')
+
+@section('content')
+    @include('components.page-heading')
+    <section class="settings-layout"><div class="panel settings-menu"><a class="settings-link active" href="{{ route('administrator') }}"><span class="material-symbols-outlined">admin_panel_settings</span>Profil Administrator</a><a class="settings-link" href="{{ route('administrator.users') }}"><span class="material-symbols-outlined">group</span>User Management</a><a class="settings-link" href="#notification"><span class="material-symbols-outlined">notifications</span>Notifikasi</a><a class="settings-link" href="#security"><span class="material-symbols-outlined">lock</span>Keamanan</a></div><div class="panel settings-form"><div class="panel-heading"><div><h2>Administrator</h2><p>Kelola konfigurasi dan akun pengelola SIMAKOS.</p></div></div><div class="profile-editor"><span class="avatar avatar-large">AS</span><div><strong>Admin Sarah</strong><p>Administrator utama</p><a class="button button-secondary" href="{{ route('administrator.users') }}">Kelola User</a></div></div><div class="form-grid"><label>Nama administrator<input value="Admin Sarah" readonly></label><label>Email administrator<input value="admin@simakos.id" readonly></label></div></div></section>
+@endsection

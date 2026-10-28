@@ -22,7 +22,7 @@
     </div>
     <nav class="sidebar-nav sidebar-footer" aria-label="Navigasi sistem">
         <span class="nav-label">System</span>
-        <a class="nav-item {{ $activeMenu === 'settings' ? 'active' : '' }}" href="{{ route('settings') }}"><span class="material-symbols-outlined">settings</span><span>Settings</span></a>
+        <a class="nav-item {{ in_array($activeMenu, ['settings', 'administrator', 'administrator-users']) ? 'active' : '' }}" href="{{ route('administrator') }}"><span class="material-symbols-outlined">settings</span><span>Administrator</span></a>
         <form method="POST" action="{{ route('logout') }}">
             @csrf
             <button class="nav-item nav-logout" type="submit"><span class="material-symbols-outlined">logout</span><span>Logout</span></button>
