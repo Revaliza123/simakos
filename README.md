@@ -21,6 +21,18 @@ php artisan serve
 
 Buka http://localhost:8000. Untuk pengembangan frontend, jalankan `npm run dev` di terminal terpisah.
 
+## Akun dan hak akses
+
+Pengguna dapat mendaftar melalui halaman **Daftar** dan akun yang dibuat akan selalu memiliki role penghuni. Route pengelola memerlukan role `admin`; route portal penghuni memerlukan role `tenant`.
+
+Untuk membuat akun admin pertama, isi `SIMAKOS_ADMIN_NAME`, `SIMAKOS_ADMIN_EMAIL`, dan `SIMAKOS_ADMIN_PASSWORD` pada `.env` dengan kredensial yang aman, lalu jalankan:
+
+```bash
+php artisan db:seed
+```
+
+Variabel password admin sengaja tidak memiliki nilai bawaan. Jangan gunakan password contoh atau membagikan file `.env`.
+
 ## Pemeriksaan
 
 ```bash

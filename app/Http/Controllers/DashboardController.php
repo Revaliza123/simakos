@@ -9,12 +9,12 @@ use App\Models\Rental;
 use App\Models\Room;
 use App\Models\RoomType;
 use App\Models\User;
-use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Schema;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -24,16 +24,19 @@ class DashboardController extends Controller
         return view('dashboard.overview', $this->sharedData('overview'));
     }
 
-    public function tenantOverview(): View
+    public function tenantOverview(Request $request): View
     {
+        $user = $request->user();
+        $rental = $user->rentals()->with('room')->where('status', 'active')->latest()->first();
+
         return view('tenant.overview', [
             'activeMenu' => 'tenant-overview',
             'tenant' => [
-                'name' => 'Dimas Arya',
-                'email' => 'dimas.arya@email.com',
-                'room' => '204',
-                'floor' => 'Lt. 2',
-                'lease_end' => '31 Des 2026',
+                'name' => $user->name,
+                'email' => $user->email,
+                'room' => $rental?->room?->room_number ?? 'Belum ditentukan',
+                'floor' => 'Properti SIMAKOS',
+                'lease_end' => $rental?->end_date?->translatedFormat('d M Y') ?? 'Tidak ditentukan',
             ],
         ]);
     }
@@ -178,12 +181,7 @@ class DashboardController extends Controller
             'content' => ['required', 'string'],
         ]);
 
-        $admin = User::firstOrCreate(
-            ['email' => 'admin@simakos.id'],
-            ['name' => 'Admin SIMAKOS', 'password' => Hash::make('password'), 'role' => 'admin'],
-        );
-
-        Announcement::create([...$validated, 'created_by' => $admin->id]);
+        Announcement::create([...$validated, 'created_by' => $request->user()->id]);
 
         return redirect()->route('announcements')->with('status', 'Pengumuman berhasil dipublikasikan.');
     }
@@ -276,22 +274,12 @@ class DashboardController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255'],
+            'email' => ['required', 'email', 'max:255', Rule::unique('users')->ignore($request->user()->id)],
         ]);
 
-        $admin = User::firstOrNew(['email' => 'admin@simakos.id']);
-        $admin->name = $validated['name'];
-        $admin->email = $validated['email'];
-        $admin->role = 'admin';
-        $admin->password ??= Hash::make('password');
-        $admin->save();
+        $request->user()->update($validated);
 
         return redirect()->route('settings')->with('status', 'Pengaturan berhasil disimpan.');
-    }
-
-    public function logout(): RedirectResponse
-    {
-        return redirect()->route('overview')->with('status', 'Sesi demo tetap aktif untuk preview desain.');
     }
 
     private function sharedData(string $activeMenu): array
