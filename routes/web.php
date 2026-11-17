@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\FinanceController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [DashboardController::class, 'overview'])->name('dashboard');
@@ -9,10 +10,18 @@ Route::get('/tenant/overview', [DashboardController::class, 'tenantOverview'])->
 Route::get('/rooms', [DashboardController::class, 'rooms'])->name('rooms');
 Route::get('/rooms/create', [DashboardController::class, 'createRoom'])->name('rooms.create');
 Route::post('/rooms', [DashboardController::class, 'storeRoom'])->name('rooms.store');
-Route::get('/billing', [DashboardController::class, 'billing'])->name('billing');
-Route::get('/billing/create', [DashboardController::class, 'createPayment'])->name('billing.create');
-Route::post('/billing', [DashboardController::class, 'storePayment'])->name('billing.store');
-Route::get('/billing/export', [DashboardController::class, 'exportBilling'])->name('billing.export');
+Route::get('/billing', [FinanceController::class, 'billing'])->name('billing');
+Route::post('/billing/generate', [FinanceController::class, 'generateInvoices'])->name('billing.generate');
+Route::get('/billing/create', [FinanceController::class, 'createPayment'])->name('billing.create');
+Route::post('/billing', [FinanceController::class, 'storePayment'])->name('billing.store');
+Route::get('/billing/export', [FinanceController::class, 'exportBilling'])->name('billing.export');
+Route::patch('/billing/payments/{payment}/approve', [FinanceController::class, 'approvePayment'])->name('billing.payments.approve');
+Route::patch('/billing/payments/{payment}/reject', [FinanceController::class, 'rejectPayment'])->name('billing.payments.reject');
+Route::get('/expenses', [FinanceController::class, 'expenses'])->name('expenses');
+Route::get('/expenses/create', [FinanceController::class, 'createExpense'])->name('expenses.create');
+Route::post('/expenses', [FinanceController::class, 'storeExpense'])->name('expenses.store');
+Route::delete('/expenses/{expense}', [FinanceController::class, 'destroyExpense'])->name('expenses.destroy');
+Route::get('/expenses/report/export', [FinanceController::class, 'exportReport'])->name('expenses.report.export');
 Route::get('/complaints', [DashboardController::class, 'complaints'])->name('complaints');
 Route::get('/complaints/create', [DashboardController::class, 'createComplaint'])->name('complaints.create');
 Route::post('/complaints', [DashboardController::class, 'storeComplaint'])->name('complaints.store');

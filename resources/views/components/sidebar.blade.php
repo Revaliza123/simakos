@@ -10,6 +10,7 @@
                 ['key' => 'overview', 'label' => 'Overview', 'icon' => 'grid_view', 'route' => 'overview'],
                 ['key' => 'rooms', 'label' => 'Room Management', 'icon' => 'bed', 'route' => 'rooms'],
                 ['key' => 'billing', 'label' => 'Payment & Billing', 'icon' => 'receipt_long', 'route' => 'billing'],
+                ['key' => 'expenses', 'label' => 'Expenses & Reports', 'icon' => 'account_balance_wallet', 'route' => 'expenses'],
                 ['key' => 'complaints', 'label' => 'Complaints & Tickets', 'icon' => 'report_problem', 'route' => 'complaints'],
                 ['key' => 'announcements', 'label' => 'Announcements', 'icon' => 'campaign', 'route' => 'announcements'],
             ] as $item)

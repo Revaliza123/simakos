@@ -4,24 +4,26 @@ namespace App\Http\Controllers;
 
 use App\Models\Announcement;
 use App\Models\Complaint;
-use App\Models\Payment;
 use App\Models\Rental;
 use App\Models\Room;
 use App\Models\RoomType;
 use App\Models\User;
+use App\Services\BillingService;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Http\Response;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
-    public function overview(): View
+    public function overview(BillingService $billing): View
     {
-        return view('dashboard.overview', $this->sharedData('overview'));
+        $data = $this->sharedData('overview');
+        $data['finance'] = Schema::hasTable('invoices') ? $billing->summary() : null;
+
+        return view('dashboard.overview', $data);
     }
 
     public function tenantOverview(): View
@@ -79,55 +81,6 @@ class DashboardController extends Controller
         Room::create($validated);
 
         return redirect()->route('rooms')->with('status', 'Kamar berhasil ditambahkan.');
-    }
-
-    public function billing(): View
-    {
-        $data = $this->sharedData('billing');
-        $data['payments'] = Schema::hasTable('payments') ? Payment::with('rental.user', 'rental.room')->latest()->get() : collect();
-
-        return view('dashboard.billing', $data);
-    }
-
-    public function createPayment(): View
-    {
-        return view('dashboard.forms.payment', array_merge($this->sharedData('billing'), [
-            'rentals' => Schema::hasTable('rentals') ? Rental::with(['user', 'room'])->where('status', 'active')->get() : collect(),
-        ]));
-    }
-
-    public function storePayment(Request $request): RedirectResponse
-    {
-        $validated = $request->validate([
-            'rental_id' => ['required', 'exists:rentals,id'],
-            'amount' => ['required', 'numeric', 'min:0'],
-            'total_months_paid' => ['required', 'integer', 'min:1'],
-            'payment_date' => ['required', 'date'],
-            'proof_image' => ['nullable', 'image', 'max:2048'],
-        ]);
-
-        if ($request->hasFile('proof_image')) {
-            $validated['proof_image'] = $request->file('proof_image')->store('payment-proofs', 'public');
-        }
-
-        Payment::create($validated);
-
-        return redirect()->route('billing')->with('status', 'Pembayaran berhasil dicatat dan menunggu persetujuan.');
-    }
-
-    public function exportBilling(): Response
-    {
-        $payments = Schema::hasTable('payments') ? Payment::with('rental.user', 'rental.room')->latest()->get() : collect();
-        $csv = "Penghuni,Kamar,Nominal,Tanggal,Status\n";
-
-        foreach ($payments as $payment) {
-            $csv .= sprintf("%s,%s,%s,%s,%s\n", $payment->rental?->user?->name ?? '-', $payment->rental?->room?->room_number ?? '-', $payment->amount, $payment->payment_date?->format('Y-m-d') ?? '-', $payment->status);
-        }
-
-        return response($csv, 200, [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="simakos-payments.csv"',
-        ]);
     }
 
     public function complaints(): View
@@ -225,10 +178,13 @@ class DashboardController extends Controller
             Room::whereKey($validated['room_id'])->update(['status' => 'occupied']);
         });
 
+        // Langsung terbitkan tagihan bulan berjalan untuk penghuni baru.
+        app(BillingService::class)->generateForMonth();
+
         return redirect()->route('overview')->with('status', 'Penghuni dan kontrak sewa berhasil ditambahkan.');
     }
 
-    public function settings(): View
+    public function settings(): RedirectResponse
     {
         return redirect()->route('administrator');
     }
@@ -292,28 +248,5 @@ class DashboardController extends Controller
     public function logout(): RedirectResponse
     {
         return redirect()->route('overview')->with('status', 'Sesi demo tetap aktif untuk preview desain.');
-    }
-
-    private function sharedData(string $activeMenu): array
-    {
-        return [
-            'activeMenu' => $activeMenu,
-            'pageTitles' => [
-                'overview' => ['Overview', 'Ringkasan operasional dan keuangan kost'],
-                'rooms' => ['Room Management', 'Pantau ketersediaan dan kondisi setiap kamar'],
-                'billing' => ['Payment & Billing', 'Kelola tagihan, pembayaran, dan rekonsiliasi sewa'],
-                'complaints' => ['Complaints & Tickets', 'Tindak lanjuti laporan dan permintaan penghuni'],
-                'announcements' => ['Announcements', 'Sampaikan informasi penting kepada penghuni'],
-                'settings' => ['Settings', 'Atur preferensi properti dan akun pengelola'],
-            ],
-            'roomsData' => [
-                ['number' => '101', 'type' => 'Standard Single', 'floor' => 'Lantai 1', 'price' => 'Rp 1.450.000', 'status' => 'Terisi', 'tenant' => 'Alya Putri', 'tone' => 'occupied'],
-                ['number' => '102', 'type' => 'Deluxe Studio', 'floor' => 'Lantai 1', 'price' => 'Rp 2.400.000', 'status' => 'Perbaikan', 'tenant' => 'Perbaikan AC', 'tone' => 'maintenance'],
-                ['number' => '201', 'type' => 'Superior Single', 'floor' => 'Lantai 2', 'price' => 'Rp 1.850.000', 'status' => 'Tersedia', 'tenant' => 'Siap huni', 'tone' => 'available'],
-                ['number' => '204', 'type' => 'Deluxe Balcony', 'floor' => 'Lantai 2', 'price' => 'Rp 2.750.000', 'status' => 'Terisi', 'tenant' => 'Raka Mahendra', 'tone' => 'occupied'],
-                ['number' => '301', 'type' => 'Deluxe Studio', 'floor' => 'Lantai 3', 'price' => 'Rp 2.900.000', 'status' => 'Tersedia', 'tenant' => 'Siap huni', 'tone' => 'available'],
-                ['number' => '302', 'type' => 'Superior Single', 'floor' => 'Lantai 3', 'price' => 'Rp 2.050.000', 'status' => 'Terisi', 'tenant' => 'Nadia Clarissa', 'tone' => 'occupied'],
-            ],
-        ];
     }
 }

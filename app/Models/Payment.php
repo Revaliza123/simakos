@@ -10,7 +10,7 @@ class Payment extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['rental_id', 'amount', 'total_months_paid', 'payment_date', 'proof_image', 'status'];
+    protected $fillable = ['rental_id', 'invoice_id', 'amount', 'total_months_paid', 'payment_date', 'proof_image', 'status', 'admin_notes'];
 
     protected function casts(): array
     {
@@ -20,5 +20,10 @@ class Payment extends Model
     public function rental(): BelongsTo
     {
         return $this->belongsTo(Rental::class);
+    }
+
+    public function invoice(): BelongsTo
+    {
+        return $this->belongsTo(Invoice::class);
     }
 }
