@@ -15,12 +15,20 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        $adminName = config('simakos.admin.name');
+        $adminEmail = config('simakos.admin.email');
+        $adminPassword = config('simakos.admin.password');
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        if ($adminName && $adminEmail && $adminPassword) {
+            User::updateOrCreate(
+                ['email' => $adminEmail],
+                [
+                    'name' => $adminName,
+                    'password' => $adminPassword,
+                    'role' => 'admin',
+                ],
+            );
+        }
 
         $this->call(FinanceDemoSeeder::class);
     }

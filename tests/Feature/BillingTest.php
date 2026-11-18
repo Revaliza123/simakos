@@ -125,6 +125,7 @@ class BillingTest extends TestCase
     public function test_finance_pages_render_with_demo_data(): void
     {
         $this->seed(FinanceDemoSeeder::class);
+        $this->actingAs(User::where('role', 'admin')->firstOrFail());
 
         $this->get('/billing')->assertOk()->assertSee('Tunggakan Penghuni')->assertSee('INV-202611');
         $this->get('/billing?status=overdue')->assertOk();
@@ -140,6 +141,7 @@ class BillingTest extends TestCase
     {
         $rental = $this->rental();
         $this->billing->generateForMonth();
+        $this->actingAs(User::factory()->create(['role' => 'admin']));
 
         $this->post('/billing', ['rental_id' => $rental->id, 'amount' => 1600000, 'total_months_paid' => 1, 'payment_date' => '2026-11-20'])
             ->assertRedirect('/billing');
