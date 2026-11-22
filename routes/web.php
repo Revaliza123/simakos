@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FinanceController;
+use App\Http\Controllers\RoomManagementController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [AuthController::class, 'home'])->name('dashboard');
@@ -18,9 +19,12 @@ Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->n
 
 Route::middleware(['auth', 'role:admin'])->group(function (): void {
     Route::get('/overview', [DashboardController::class, 'overview'])->name('overview');
-    Route::get('/rooms', [DashboardController::class, 'rooms'])->name('rooms');
-    Route::get('/rooms/create', [DashboardController::class, 'createRoom'])->name('rooms.create');
-    Route::post('/rooms', [DashboardController::class, 'storeRoom'])->name('rooms.store');
+    Route::get('/rooms', [RoomManagementController::class, 'rooms'])->name('rooms');
+    Route::get('/rooms/create', [RoomManagementController::class, 'createRoom'])->name('rooms.create');
+    Route::post('/rooms', [RoomManagementController::class, 'storeRoom'])->name('rooms.store');
+    Route::get('/rooms/{room}/edit', [RoomManagementController::class, 'editRoom'])->name('rooms.edit');
+    Route::put('/rooms/{room}', [RoomManagementController::class, 'updateRoom'])->name('rooms.update');
+    Route::delete('/rooms/{room}', [RoomManagementController::class, 'destroyRoom'])->name('rooms.destroy');
     Route::get('/billing', [FinanceController::class, 'billing'])->name('billing');
     Route::get('/billing/create', [FinanceController::class, 'createPayment'])->name('billing.create');
     Route::post('/billing', [FinanceController::class, 'storePayment'])->name('billing.store');
@@ -39,8 +43,13 @@ Route::middleware(['auth', 'role:admin'])->group(function (): void {
     Route::get('/announcements', [DashboardController::class, 'announcements'])->name('announcements');
     Route::get('/announcements/create', [DashboardController::class, 'createAnnouncement'])->name('announcements.create');
     Route::post('/announcements', [DashboardController::class, 'storeAnnouncement'])->name('announcements.store');
+    Route::get('/tenants', [RoomManagementController::class, 'tenants'])->name('tenants');
     Route::get('/tenants/create', [DashboardController::class, 'createTenant'])->name('tenants.create');
     Route::post('/tenants', [DashboardController::class, 'storeTenant'])->name('tenants.store');
+    Route::put('/tenants/{tenant}', [RoomManagementController::class, 'updateTenant'])->name('tenants.update');
+    Route::delete('/tenants/{tenant}', [RoomManagementController::class, 'destroyTenant'])->name('tenants.destroy');
+    Route::post('/tenants/{tenant}/assign', [RoomManagementController::class, 'assignRoom'])->name('tenants.assign');
+    Route::patch('/rentals/{rental}/complete', [RoomManagementController::class, 'completeRental'])->name('rentals.complete');
     Route::get('/settings', [DashboardController::class, 'settings'])->name('settings');
     Route::put('/settings', [DashboardController::class, 'updateSettings'])->name('settings.update');
     Route::get('/administrator', [DashboardController::class, 'administrator'])->name('administrator');

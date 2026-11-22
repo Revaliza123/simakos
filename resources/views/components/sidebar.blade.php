@@ -13,6 +13,7 @@
                 ['key' => 'expenses', 'label' => 'Expenses & Reports', 'icon' => 'account_balance_wallet', 'route' => 'expenses'],
                 ['key' => 'complaints', 'label' => 'Complaints & Tickets', 'icon' => 'report_problem', 'route' => 'complaints'],
                 ['key' => 'announcements', 'label' => 'Announcements', 'icon' => 'campaign', 'route' => 'announcements'],
+                ['key' => 'tenants', 'label' => 'Tenant Management', 'icon' => 'groups', 'route' => 'tenants'],
             ] as $item)
                 <a class="nav-item {{ $activeMenu === $item['key'] ? 'active' : '' }}" href="{{ route($item['route']) }}">
                     <span class="material-symbols-outlined">{{ $item['icon'] }}</span>
