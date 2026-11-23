@@ -1,8 +1,86 @@
 @extends('layouts.tenant')
 
+@section('title', 'Beranda Penghuni')
+
 @section('content')
-    <div class="tenant-welcome"><div><span class="eyebrow">PORTAL PENGHUNI / BERANDA</span><h1>Selamat datang, {{ $tenant['name'] }}</h1><p>Berikut ringkasan informasi kamar dan aktivitas sewa Anda.</p></div><span class="tenant-status"><i></i>Status Sewa: Aktif & Terverifikasi</span></div>
-    <section class="tenant-hero panel"><div><span class="eyebrow">KAMAR SAAT INI</span><h2>Kamar {{ $tenant['room'] }} <span>· {{ $tenant['floor'] }}</span></h2><p>Deluxe Balcony · Sewa aktif sampai {{ $tenant['lease_end'] }}</p><div class="tenant-hero-meta"><span><span class="material-symbols-outlined">wifi</span> WiFi aktif</span><span><span class="material-symbols-outlined">ac_unit</span> AC</span><span><span class="material-symbols-outlined">shower</span> KM dalam</span></div></div><div class="tenant-room-illustration"><span class="material-symbols-outlined">bed</span><small>Unit utama</small></div></section>
-    <section class="tenant-grid"><article class="panel tenant-bill-card" id="billing"><div class="panel-heading"><div><h2>Tagihan Bulan Berjalan</h2><p>Periode November 2026</p></div><span class="status-badge maintenance"><i></i>Menunggu Pembayaran</span></div><div class="tenant-amount">Rp 2.750.000 <small>Total tagihan</small></div><div class="tenant-bill-lines"><span>Sewa kamar pokok <b>Rp 2.750.000</b></span><span>Jatuh tempo <b>10 Nov 2026</b></span></div></article><article class="panel tenant-ticket-card" id="complaints"><div class="panel-heading"><div><h2>Riwayat Tiket & Aduan</h2><p>Pantau penanganan laporan fasilitas</p></div></div><div class="tenant-ticket-row"><span class="activity-avatar orange"><span class="material-symbols-outlined">build</span></span><div><strong>AC kamar kurang dingin & menetes</strong><p>#TKT-1024 · Sedang diproses</p></div><span class="status-badge maintenance"><i></i>Diproses</span></div><div class="tenant-ticket-row"><span class="activity-avatar green"><span class="material-symbols-outlined">check</span></span><div><strong>Lampu kamar mandi berkedip</strong><p>#TKT-1018 · Selesai kemarin</p></div><span class="status-badge available"><i></i>Selesai</span></div></article></section>
-    <section class="tenant-grid tenant-grid-bottom"><article class="panel tenant-announcement-card" id="announcements"><div class="panel-heading"><div><h2>Papan Pengumuman</h2><p>Informasi terbaru dari pengelola</p></div></div><div class="tenant-notice"><span class="announcement-icon blue"><span class="material-symbols-outlined">campaign</span></span><div><span class="status-badge maintenance"><i></i>Penting</span><h3>Pemadaman listrik terjadwal</h3><p>Pemeliharaan jaringan listrik Minggu, 30 Oktober pukul 09.00–12.00 WIB.</p></div></div><div class="tenant-notice"><span class="announcement-icon purple"><span class="material-symbols-outlined">info</span></span><div><span class="status-badge blue"><i></i>Info</span><h3>Aturan penggunaan area parkir</h3><p>Gunakan slot parkir sesuai nomor kamar agar akses tetap nyaman.</p></div></div></article><article class="panel tenant-facilities" id="facilities"><div class="panel-heading"><div><h2>Fasilitas Kamar {{ $tenant['room'] }}</h2><p>Fasilitas yang tersedia di unit Anda</p></div></div><div class="facility-list"><span><i class="material-symbols-outlined">ac_unit</i> AC Split</span><span><i class="material-symbols-outlined">shower</i> Kamar mandi dalam</span><span><i class="material-symbols-outlined">wifi</i> WiFi 100 Mbps</span><span><i class="material-symbols-outlined">bed</i> Kasur & lemari</span><span><i class="material-symbols-outlined">balcony</i> Balkon pribadi</span><span><i class="material-symbols-outlined">bolt</i> Listrik termasuk</span></div><div class="tenant-help"><span class="material-symbols-outlined">support_agent</span><span><b>Butuh bantuan?</b><small>Hubungi pengelola untuk bantuan fasilitas.</small></span><a href="mailto:admin@simakos.id" class="text-link">Hubungi</a></div></article></section>
+    @php($totalDue = $outstanding->sum(fn ($invoice) => $invoice->totalDue()))
+    <div class="tenant-welcome">
+        <div><span class="eyebrow">PORTAL PENGHUNI / BERANDA</span><h1>Selamat datang, {{ $tenant['name'] }}</h1><p>Berikut ringkasan informasi kamar dan aktivitas sewa Anda.</p></div>
+        <span class="tenant-status"><i></i>{{ $rental ? 'Status Sewa: Aktif' : 'Belum ada kontrak sewa' }}</span>
+    </div>
+
+    @if ($rental)
+        <section class="tenant-hero panel">
+            <div>
+                <span class="eyebrow">KAMAR SAAT INI</span>
+                <h2>Kamar {{ $rental->room->room_number }} <span>· {{ $rental->room->roomType?->name ?? 'Properti SIMAKOS' }}</span></h2>
+                <p>{{ rupiah($rental->room->price) }}/bulan · Mulai {{ $rental->start_date->translatedFormat('d M Y') }} · {{ $rental->end_date ? 'Sewa aktif sampai '.$rental->end_date->translatedFormat('d M Y') : 'Sewa bulanan tanpa batas waktu' }}</p>
+                @if ($rental->room->roomType?->description)
+                    <div class="tenant-hero-meta"><span><span class="material-symbols-outlined">check_circle</span> {{ $rental->room->roomType->description }}</span></div>
+                @endif
+            </div>
+            <div class="tenant-room-illustration"><span class="material-symbols-outlined">bed</span><small>Unit {{ $rental->room->room_number }}</small></div>
+        </section>
+    @else
+        <section class="panel settings-form" style="margin-bottom:20px">
+            <h2>Anda belum memiliki kontrak sewa aktif</h2>
+            <p class="empty-note">Hubungi pengelola kos untuk proses check-in. Setelah kontrak dibuat, tagihan dan menu keluhan akan aktif di portal ini.</p>
+        </section>
+    @endif
+
+    <section class="tenant-grid">
+        <article class="panel tenant-bill-card">
+            <div class="panel-heading">
+                <div><h2>Tagihan Belum Lunas</h2><p>{{ $outstanding->count() }} tagihan · diperbarui otomatis setiap bulan</p></div>
+                @if ($outstanding->isEmpty())
+                    <span class="status-badge available"><i></i>Lunas</span>
+                @else
+                    <span class="status-badge {{ $outstanding->contains('status', 'overdue') ? 'occupied' : 'maintenance' }}"><i></i>{{ $outstanding->contains('status', 'overdue') ? 'Terlambat' : 'Menunggu Pembayaran' }}</span>
+                @endif
+            </div>
+            <div class="tenant-amount">{{ rupiah($totalDue) }} <small>Total tagihan</small></div>
+            <div class="tenant-bill-lines">
+                @forelse ($outstanding->take(3) as $invoice)
+                    <span>{{ $invoice->billing_month->translatedFormat('F Y') }} · {{ $invoice->statusLabel() }} <b>{{ rupiah($invoice->totalDue()) }}</b></span>
+                    <span>Jatuh tempo <b>{{ $invoice->due_date->translatedFormat('d M Y') }}</b></span>
+                @empty
+                    <span>Tidak ada tagihan tertunggak. Terima kasih!</span>
+                @endforelse
+                @if ($latestPayment?->status === 'rejected')
+                    <span class="danger-text">Pembayaran terakhir ditolak: {{ $latestPayment->admin_notes }}</span>
+                @endif
+            </div>
+            <a class="button button-primary button-full" href="{{ route('tenant.bills') }}" style="margin-top:16px"><span class="material-symbols-outlined">upload</span>Bayar / Unggah Bukti</a>
+        </article>
+
+        <article class="panel tenant-ticket-card">
+            <div class="panel-heading"><div><h2>Riwayat Tiket & Aduan</h2><p>Pantau penanganan laporan fasilitas</p></div><a class="text-link" href="{{ route('tenant.complaints') }}">Semua</a></div>
+            @forelse ($complaints as $complaint)
+                <div class="tenant-ticket-row">
+                    <span class="activity-avatar {{ $complaint->status === 'resolved' ? 'green' : 'orange' }}"><span class="material-symbols-outlined">{{ $complaint->status === 'resolved' ? 'check' : 'build' }}</span></span>
+                    <div><strong>{{ $complaint->title }}</strong><p>{{ $complaint->ticketNumber() }} · {{ $complaint->created_at->diffForHumans() }}</p></div>
+                    <span class="status-badge {{ $complaint->statusTone() }}"><i></i>{{ $complaint->statusLabel() }}</span>
+                </div>
+            @empty
+                <p class="empty-note">Belum ada keluhan. Laporkan kerusakan fasilitas melalui menu Aduan & Tiket.</p>
+            @endforelse
+            @if ($rental)
+                <a class="button button-secondary button-full" href="{{ route('tenant.complaints.create') }}" style="margin-top:12px"><span class="material-symbols-outlined">add</span>Ajukan Keluhan</a>
+            @endif
+        </article>
+    </section>
+
+    <section class="tenant-grid tenant-grid-bottom">
+        <article class="panel tenant-announcement-card" style="grid-column:1/-1">
+            <div class="panel-heading"><div><h2>Papan Pengumuman</h2><p>Informasi terbaru dari pengelola</p></div><a class="text-link" href="{{ route('tenant.announcements') }}">Semua</a></div>
+            @forelse ($announcements as $announcement)
+                <div class="tenant-notice">
+                    <span class="announcement-icon blue"><span class="material-symbols-outlined">campaign</span></span>
+                    <div><span class="status-badge blue"><i></i>{{ $announcement->published_at->translatedFormat('d M Y') }}</span><h3>{{ $announcement->title }}</h3><p>{{ \Illuminate\Support\Str::limit($announcement->content, 220) }}</p></div>
+                </div>
+            @empty
+                <p class="empty-note">Belum ada pengumuman.</p>
+            @endforelse
+        </article>
+    </section>
 @endsection

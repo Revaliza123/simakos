@@ -9,7 +9,7 @@
 </head>
 <body class="auth-page">
     <main class="auth-card">
-        <a class="brand auth-brand" href="{{ route('login') }}">
+        <a class="brand auth-brand" href="{{ route('home') }}">
             <span class="brand-mark"><span class="material-symbols-outlined">apartment</span></span>
             <span><strong>SIMAKOS</strong><small>SISTEM MANAJEMEN KOS</small></span>
         </a>

@@ -16,9 +16,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FinanceController extends Controller
 {
-    public function __construct(private readonly BillingService $billing)
-    {
-    }
+    public function __construct(private readonly BillingService $billing) {}
 
     /* ------------------------------------------------------------------
      | Billing: tagihan & pembayaran
@@ -83,9 +81,11 @@ class FinanceController extends Controller
             'amount' => ['required', 'numeric', 'min:0'],
             'total_months_paid' => ['required', 'integer', 'min:1', 'max:12'],
             'payment_date' => ['required', 'date', 'before_or_equal:today'],
-            'proof_image' => ['nullable', 'image', 'max:2048'],
+            'proof_image' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:2048'],
         ], [
             'invoice_id.exists' => 'Tagihan yang dipilih bukan milik kontrak penghuni tersebut.',
+            'proof_image.mimes' => 'Format file harus jpg, png.',
+            'proof_image.max' => 'Ukuran file bukti transfer maksimal 2 MB.',
         ]);
 
         if ($request->hasFile('proof_image')) {
@@ -110,9 +110,17 @@ class FinanceController extends Controller
     {
         abort_unless($payment->status === 'pending', 422, 'Pembayaran sudah diproses.');
 
-        $this->billing->rejectPayment($payment, $request->input('admin_notes', 'Bukti pembayaran tidak valid.'));
+        // FR-06: penolakan wajib disertai catatan alasan agar penghuni tahu apa yang harus diperbaiki.
+        $validated = $request->validate([
+            'admin_notes' => ['required', 'string', 'min:5', 'max:500'],
+        ], [
+            'admin_notes.required' => 'Alasan penolakan wajib diisi.',
+            'admin_notes.min' => 'Alasan penolakan minimal 5 karakter.',
+        ]);
 
-        return back()->with('status', 'Pembayaran ditolak. Tagihan dikembalikan ke status belum dibayar.');
+        $this->billing->rejectPayment($payment, $validated['admin_notes']);
+
+        return back()->with('status', 'Pembayaran ditolak. Penghuni dapat mengunggah ulang bukti yang sah.');
     }
 
     public function exportBilling(Request $request): StreamedResponse

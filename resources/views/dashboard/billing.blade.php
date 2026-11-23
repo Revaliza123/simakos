@@ -66,9 +66,9 @@
                             <td><span class="status-badge {{ $payment->status === 'approved' ? 'available' : ($payment->status === 'rejected' ? 'occupied' : 'maintenance') }}"><i></i>{{ ['pending' => 'Menunggu', 'approved' => 'Disetujui', 'rejected' => 'Ditolak'][$payment->status] ?? $payment->status }}</span>@if ($payment->admin_notes)<small>{{ $payment->admin_notes }}</small>@endif</td>
                             <td>
                                 @if ($payment->status === 'pending')
-                                    <div class="row-actions">
+                                    <div class="verify-actions">
                                         <form method="POST" action="{{ route('billing.payments.approve', $payment) }}">@csrf @method('PATCH')<button class="table-action" type="submit">Setujui</button></form>
-                                        <form method="POST" action="{{ route('billing.payments.reject', $payment) }}">@csrf @method('PATCH')<button class="table-action danger-text" type="submit">Tolak</button></form>
+                                        <details class="reject-box" @if ($errors->has('admin_notes') && (int) old('payment_id') === $payment->id) open @endif><summary class="table-action danger-text">Tolak</summary><form method="POST" action="{{ route('billing.payments.reject', $payment) }}">@csrf @method('PATCH')<input type="hidden" name="payment_id" value="{{ $payment->id }}"><textarea name="admin_notes" rows="2" maxlength="500" minlength="5" placeholder="Alasan penolakan (wajib)" required aria-label="Alasan penolakan">{{ (int) old('payment_id') === $payment->id ? old('admin_notes') : '' }}</textarea><button class="table-action danger-text" type="submit">Kirim penolakan</button></form></details>
                                     </div>
                                 @else
                                     <small>-</small>

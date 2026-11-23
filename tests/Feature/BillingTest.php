@@ -48,7 +48,7 @@ class BillingTest extends TestCase
         $this->assertSame($rental->id, $invoice->rental_id);
         $this->assertSame('2026-11-10', $invoice->due_date->toDateString());
         $this->assertEquals(1500000, $invoice->amount);
-        $this->assertSame("INV-202611-".str_pad((string) $rental->id, 4, '0', STR_PAD_LEFT), $invoice->invoice_number);
+        $this->assertSame('INV-202611-'.str_pad((string) $rental->id, 4, '0', STR_PAD_LEFT), $invoice->invoice_number);
     }
 
     public function test_rental_starting_after_due_day_gets_seven_day_grace(): void
@@ -127,14 +127,14 @@ class BillingTest extends TestCase
         $this->seed(FinanceDemoSeeder::class);
         $this->actingAs(User::where('role', 'admin')->firstOrFail());
 
-        $this->get('/billing')->assertOk()->assertSee('Tunggakan Penghuni')->assertSee('INV-202611');
-        $this->get('/billing?status=overdue')->assertOk();
-        $this->get('/billing/create')->assertOk();
-        $this->get('/expenses')->assertOk()->assertSee('Laporan Pemasukan vs Pengeluaran 2026');
-        $this->get('/expenses/create')->assertOk();
-        $this->get('/overview')->assertOk();
-        $this->get('/billing/export')->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8');
-        $this->get('/expenses/report/export')->assertOk();
+        $this->get('/admin/billing')->assertOk()->assertSee('Tunggakan Penghuni')->assertSee('INV-202611');
+        $this->get('/admin/billing?status=overdue')->assertOk();
+        $this->get('/admin/billing/create')->assertOk();
+        $this->get('/admin/expenses')->assertOk()->assertSee('Laporan Pemasukan vs Pengeluaran 2026');
+        $this->get('/admin/expenses/create')->assertOk();
+        $this->get('/admin/overview')->assertOk();
+        $this->get('/admin/billing/export')->assertOk()->assertHeader('content-type', 'text/csv; charset=UTF-8');
+        $this->get('/admin/expenses/report/export')->assertOk();
     }
 
     public function test_admin_can_approve_payment_and_record_expense_via_http(): void
@@ -143,18 +143,18 @@ class BillingTest extends TestCase
         $this->billing->generateForMonth();
         $this->actingAs(User::factory()->create(['role' => 'admin']));
 
-        $this->post('/billing', ['rental_id' => $rental->id, 'amount' => 1600000, 'total_months_paid' => 1, 'payment_date' => '2026-11-20'])
-            ->assertRedirect('/billing');
+        $this->post('/admin/billing', ['rental_id' => $rental->id, 'amount' => 1600000, 'total_months_paid' => 1, 'payment_date' => '2026-11-20'])
+            ->assertRedirect('/admin/billing');
         $payment = Payment::sole();
 
-        $this->patch("/billing/payments/{$payment->id}/approve")->assertRedirect();
+        $this->patch("/admin/billing/payments/{$payment->id}/approve")->assertRedirect();
         $this->assertSame('paid', Invoice::sole()->status);
         $this->assertEquals(100000, Invoice::sole()->late_fee);
 
-        $this->post('/expenses', ['title' => 'Air', 'category' => 'air', 'amount' => 300000, 'expense_date' => '2026-11-03'])->assertRedirect();
+        $this->post('/admin/expenses', ['title' => 'Air', 'category' => 'air', 'amount' => 300000, 'expense_date' => '2026-11-03'])->assertRedirect();
         $this->assertDatabaseHas('expenses', ['title' => 'Air', 'category' => 'air']);
 
-        $this->post('/expenses', ['title' => 'X', 'category' => 'bukan-kategori', 'amount' => 1, 'expense_date' => '2026-11-03'])
+        $this->post('/admin/expenses', ['title' => 'X', 'category' => 'bukan-kategori', 'amount' => 1, 'expense_date' => '2026-11-03'])
             ->assertSessionHasErrors('category');
     }
 }

@@ -8,13 +8,14 @@
             <span class="nav-label">Main menu</span>
             @foreach ([
                 ['key' => 'overview', 'label' => 'Overview', 'icon' => 'grid_view', 'route' => 'overview'],
-                ['key' => 'rooms', 'label' => 'Room Management', 'icon' => 'bed', 'route' => 'rooms'],
+                ['key' => 'rooms', 'label' => 'Room Management', 'icon' => 'bed', 'route' => 'rooms', 'also' => ['room-types']],
+                ['key' => 'rentals', 'label' => 'Rental & Check-out', 'icon' => 'key', 'route' => 'rentals.index'],
                 ['key' => 'billing', 'label' => 'Payment & Billing', 'icon' => 'receipt_long', 'route' => 'billing'],
                 ['key' => 'expenses', 'label' => 'Expenses & Reports', 'icon' => 'account_balance_wallet', 'route' => 'expenses'],
                 ['key' => 'complaints', 'label' => 'Complaints & Tickets', 'icon' => 'report_problem', 'route' => 'complaints'],
                 ['key' => 'announcements', 'label' => 'Announcements', 'icon' => 'campaign', 'route' => 'announcements'],
             ] as $item)
-                <a class="nav-item {{ $activeMenu === $item['key'] ? 'active' : '' }}" href="{{ route($item['route']) }}">
+                <a class="nav-item {{ in_array($activeMenu, [$item['key'], ...($item['also'] ?? [])], true) ? 'active' : '' }}" href="{{ route($item['route']) }}">
                     <span class="material-symbols-outlined">{{ $item['icon'] }}</span>
                     <span>{{ $item['label'] }}</span>
                 </a>

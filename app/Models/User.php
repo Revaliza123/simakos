@@ -23,6 +23,8 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'phone_number',
+        'emergency_contact',
     ];
 
     /**
@@ -56,5 +58,16 @@ class User extends Authenticatable
     public function announcements()
     {
         return $this->hasMany(Announcement::class, 'created_by');
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+
+    /** Kontrak sewa aktif milik penghuni (null bila belum/tidak menyewa). */
+    public function activeRental(): ?Rental
+    {
+        return $this->rentals()->with('room.roomType')->where('status', 'active')->latest('start_date')->latest('id')->first();
     }
 }

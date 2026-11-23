@@ -27,4 +27,15 @@ class Room extends Model
     {
         return $this->hasMany(Rental::class);
     }
+
+    public const STATUS_LABELS = [
+        'available' => 'Tersedia',
+        'occupied' => 'Terisi',
+        'maintenance' => 'Perbaikan',
+    ];
+
+    public function statusLabel(): string
+    {
+        return self::STATUS_LABELS[$this->status] ?? ucfirst((string) $this->status);
+    }
 }

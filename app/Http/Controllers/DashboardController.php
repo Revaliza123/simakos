@@ -2,18 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Announcement;
 use App\Models\Complaint;
+use App\Models\Payment;
 use App\Models\Rental;
 use App\Models\Room;
-use App\Models\RoomType;
 use App\Models\User;
 use App\Services\BillingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -21,166 +17,61 @@ class DashboardController extends Controller
 {
     public function overview(BillingService $billing): View
     {
-        $data = $this->sharedData('overview');
-        $data['finance'] = Schema::hasTable('invoices') ? $billing->summary() : null;
+        $billing->generateForMonth();
+        $billing->refreshOverdue();
 
-        return view('dashboard.overview', $data);
-    }
+        $rooms = Room::selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status');
+        $totalRooms = (int) $rooms->sum();
+        $occupied = (int) ($rooms['occupied'] ?? 0);
 
-    public function tenantOverview(Request $request): View
-    {
-        $user = $request->user();
-        $rental = $user->rentals()->with('room')->where('status', 'active')->latest()->first();
+        // Tren pemasukan (pembayaran disetujui) 6 bulan terakhir.
+        $months = collect(range(5, 0))->map(fn (int $ago) => now()->startOfMonth()->subMonthsNoOverflow($ago));
+        $income = $months->map(fn ($m) => (float) Payment::where('status', 'approved')
+            ->whereBetween('payment_date', [$m->toDateString(), $m->copy()->endOfMonth()->toDateString()])
+            ->sum('amount'));
 
-        return view('tenant.overview', [
-            'activeMenu' => 'tenant-overview',
-            'tenant' => [
-                'name' => $user->name,
-                'email' => $user->email,
-                'room' => $rental?->room?->room_number ?? 'Belum ditentukan',
-                'floor' => 'Properti SIMAKOS',
-                'lease_end' => $rental?->end_date?->translatedFormat('d M Y') ?? 'Tidak ditentukan',
+        $activities = collect()
+            ->merge(Payment::with('rental.user', 'rental.room')->latest('id')->limit(5)->get()->map(fn (Payment $p) => [
+                'icon' => 'payments', 'tone' => $p->status === 'approved' ? 'green' : ($p->status === 'rejected' ? 'orange' : 'blue'),
+                'title' => ['pending' => 'Bukti bayar menunggu validasi', 'approved' => 'Pembayaran disetujui', 'rejected' => 'Pembayaran ditolak'][$p->status] ?? 'Pembayaran',
+                'subtitle' => ($p->rental?->user?->name ?? '-').' · Kamar '.($p->rental?->room?->room_number ?? '-'),
+                'time' => $p->created_at, 'value' => rupiah($p->amount),
+            ]))
+            ->merge(Complaint::with('rental.room')->latest('id')->limit(5)->get()->map(fn (Complaint $c) => [
+                'icon' => 'report_problem', 'tone' => 'orange',
+                'title' => 'Keluhan: '.$c->title,
+                'subtitle' => $c->ticketNumber().' · Kamar '.($c->rental?->room?->room_number ?? '-'),
+                'time' => $c->created_at, 'value' => $c->statusLabel(),
+            ]))
+            ->merge(Rental::with('user', 'room')->latest('id')->limit(5)->get()->map(fn (Rental $r) => [
+                'icon' => $r->status === 'active' ? 'person_add' : 'logout', 'tone' => 'blue',
+                'title' => $r->status === 'active' ? 'Check-in penghuni' : 'Check-out penghuni',
+                'subtitle' => ($r->user?->name ?? '-').' · Kamar '.($r->room?->room_number ?? '-'),
+                'time' => $r->updated_at, 'value' => $r->status === 'active' ? 'Aktif' : 'Selesai',
+            ]))
+            ->sortByDesc('time')
+            ->take(6)
+            ->values();
+
+        return view('dashboard.overview', [
+            ...$this->sharedData('overview'),
+            'finance' => $billing->summary(),
+            'stats' => [
+                'tenants' => Rental::where('status', 'active')->distinct('user_id')->count('user_id'),
+                'rooms' => $totalRooms,
+                'occupied' => $occupied,
+                'available' => (int) ($rooms['available'] ?? 0),
+                'maintenance' => (int) ($rooms['maintenance'] ?? 0),
+                'occupancy' => $totalRooms > 0 ? (int) round($occupied / $totalRooms * 100) : 0,
+                'openComplaints' => Complaint::where('status', '!=', 'resolved')->count(),
             ],
+            'trend' => [
+                'labels' => $months->map(fn ($m) => $m->translatedFormat('M'))->all(),
+                'values' => $income->all(),
+                'max' => max(1, (float) $income->max()),
+            ],
+            'activities' => $activities,
         ]);
-    }
-
-    public function rooms(): View
-    {
-        $data = $this->sharedData('rooms');
-        $data['roomsData'] = Schema::hasTable('rooms')
-            ? Room::with(['roomType', 'rentals.user'])->latest()->get()->map(function (Room $room): array {
-                $rental = $room->rentals->firstWhere('status', 'active');
-
-                return [
-                    'number' => $room->room_number,
-                    'type' => $room->roomType?->name ?? 'Tanpa tipe',
-                    'floor' => 'Properti SIMAKOS',
-                    'price' => 'Rp '.number_format((float) $room->price, 0, ',', '.'),
-                    'status' => ucfirst($room->status),
-                    'tenant' => $rental?->user?->name ?? ($room->status === 'available' ? 'Siap huni' : 'Belum ada data penghuni'),
-                    'tone' => $room->status,
-                ];
-            })
-            : collect($data['roomsData']);
-
-        return view('dashboard.rooms', $data);
-    }
-
-    public function createRoom(): View
-    {
-        return view('dashboard.forms.room', array_merge($this->sharedData('rooms'), [
-            'roomTypes' => Schema::hasTable('room_types') ? RoomType::orderBy('name')->get() : collect(),
-        ]));
-    }
-
-    public function storeRoom(Request $request): RedirectResponse
-    {
-        $validated = $request->validate([
-            'room_number' => ['required', 'string', 'max:10', 'unique:rooms,room_number'],
-            'room_type_id' => ['nullable', 'exists:room_types,id'],
-            'price' => ['required', 'numeric', 'min:0'],
-            'status' => ['required', 'in:available,occupied,maintenance'],
-        ]);
-
-        Room::create($validated);
-
-        return redirect()->route('rooms')->with('status', 'Kamar berhasil ditambahkan.');
-    }
-
-    public function complaints(): View
-    {
-        $data = $this->sharedData('complaints');
-        $data['complaints'] = Schema::hasTable('complaints') ? Complaint::with('rental.user', 'rental.room')->latest()->get() : collect();
-
-        return view('dashboard.complaints', $data);
-    }
-
-    public function createComplaint(): View
-    {
-        return view('dashboard.forms.complaint', array_merge($this->sharedData('complaints'), [
-            'rentals' => Schema::hasTable('rentals') ? Rental::with(['user', 'room'])->where('status', 'active')->get() : collect(),
-        ]));
-    }
-
-    public function storeComplaint(Request $request): RedirectResponse
-    {
-        $validated = $request->validate([
-            'rental_id' => ['required', 'exists:rentals,id'],
-            'title' => ['required', 'string', 'max:255'],
-            'description' => ['required', 'string'],
-        ]);
-
-        Complaint::create($validated);
-
-        return redirect()->route('complaints')->with('status', 'Tiket keluhan berhasil dibuat.');
-    }
-
-    public function announcements(): View
-    {
-        $data = $this->sharedData('announcements');
-        $data['announcements'] = Schema::hasTable('announcements') ? Announcement::with('creator')->latest()->get() : collect();
-
-        return view('dashboard.announcements', $data);
-    }
-
-    public function createAnnouncement(): View
-    {
-        return view('dashboard.forms.announcement', $this->sharedData('announcements'));
-    }
-
-    public function storeAnnouncement(Request $request): RedirectResponse
-    {
-        $validated = $request->validate([
-            'title' => ['required', 'string', 'max:255'],
-            'content' => ['required', 'string'],
-        ]);
-
-        Announcement::create([...$validated, 'created_by' => $request->user()->id]);
-
-        return redirect()->route('announcements')->with('status', 'Pengumuman berhasil dipublikasikan.');
-    }
-
-    public function createTenant(): View
-    {
-        return view('dashboard.forms.tenant', array_merge($this->sharedData('overview'), [
-            'rooms' => Schema::hasTable('rooms') ? Room::where('status', 'available')->orderBy('room_number')->get() : collect(),
-        ]));
-    }
-
-    public function storeTenant(Request $request): RedirectResponse
-    {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'room_id' => ['required', 'exists:rooms,id'],
-            'start_date' => ['required', 'date'],
-            'end_date' => ['nullable', 'date', 'after:start_date'],
-        ]);
-
-        DB::transaction(function () use ($validated): void {
-            $tenant = User::create([
-                'name' => $validated['name'],
-                'email' => $validated['email'],
-                'password' => $validated['password'],
-                'role' => 'tenant',
-            ]);
-
-            Rental::create([
-                'user_id' => $tenant->id,
-                'room_id' => $validated['room_id'],
-                'start_date' => $validated['start_date'],
-                'end_date' => $validated['end_date'] ?? null,
-                'status' => 'active',
-            ]);
-
-            Room::whereKey($validated['room_id'])->update(['status' => 'occupied']);
-        });
-
-        // Langsung terbitkan tagihan bulan berjalan untuk penghuni baru.
-        app(BillingService::class)->generateForMonth();
-
-        return redirect()->route('overview')->with('status', 'Penghuni dan kontrak sewa berhasil ditambahkan.');
     }
 
     public function settings(): RedirectResponse
