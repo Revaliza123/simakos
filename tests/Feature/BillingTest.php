@@ -137,17 +137,19 @@ class BillingTest extends TestCase
         $this->get('/admin/expenses/report/export')->assertOk();
     }
 
-    public function test_admin_can_approve_payment_and_record_expense_via_http(): void
+    public function test_admin_recorded_payment_is_approved_immediately_and_expense_recorded(): void
     {
         $rental = $this->rental();
         $this->billing->generateForMonth();
         $this->actingAs(User::factory()->create(['role' => 'admin']));
 
+        // Uang diterima langsung oleh admin → langsung disetujui, tidak perlu validasi ulang.
         $this->post('/admin/billing', ['rental_id' => $rental->id, 'amount' => 1600000, 'total_months_paid' => 1, 'payment_date' => '2026-11-20'])
             ->assertRedirect('/admin/billing');
         $payment = Payment::sole();
 
-        $this->patch("/admin/billing/payments/{$payment->id}/approve")->assertRedirect();
+        $this->assertSame('approved', $payment->status);
+        $this->patch("/admin/billing/payments/{$payment->id}/approve")->assertStatus(422);
         $this->assertSame('paid', Invoice::sole()->status);
         $this->assertEquals(100000, Invoice::sole()->late_fee);
 

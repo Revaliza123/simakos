@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Charge;
 use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Rental;
+use App\Models\Room;
 use App\Services\BillingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -42,6 +44,7 @@ class FinanceController extends Controller
             'month' => $month,
             'status' => $status,
             'invoices' => $invoices,
+            'activeCharges' => Charge::where('is_active', true)->count(),
             'statusCounts' => Invoice::forMonth($month)->selectRaw('status, count(*) as total')->groupBy('status')->pluck('total', 'status'),
             'payments' => Payment::with('rental.user', 'rental.room', 'invoice')->latest('payment_date')->latest('id')->limit(50)->get(),
             'summary' => $this->billing->summary($month),
@@ -54,11 +57,12 @@ class FinanceController extends Controller
         $validated = $request->validate(['month' => ['required', 'date_format:Y-m']]);
         $month = Carbon::createFromFormat('!Y-m', $validated['month'])->startOfMonth();
 
-        $created = $this->billing->generateForMonth($month);
+        $rent = $this->billing->generateRentForMonth($month);
+        $charges = $this->billing->generateChargesForMonth($month);
         $this->billing->refreshOverdue();
 
         return redirect()->route('billing', ['month' => $month->format('Y-m')])
-            ->with('status', "{$created} tagihan baru dibuat untuk {$month->translatedFormat('F Y')}.");
+            ->with('status', "{$rent} tagihan sewa dan {$charges} tagihan lain dibuat untuk {$month->translatedFormat('F Y')}. Kontrak yang bulan ini sudah tercakup tagihan sebelumnya (siklus 3/6/12 bulan atau bayar di muka) dilewati.");
     }
 
     public function createPayment(Request $request): View
@@ -68,11 +72,15 @@ class FinanceController extends Controller
         return view('dashboard.forms.payment', [
             ...$this->sharedData('billing'),
             'rentals' => Rental::with(['user', 'room'])->where('status', 'active')->get(),
-            'invoices' => Invoice::with('rental.user', 'rental.room')->whereIn('status', ['unpaid', 'overdue'])->orderBy('billing_month')->get(),
+            'invoices' => Invoice::with('rental.user', 'rental.room')->whereIn('status', ['unpaid', 'overdue'])->orderBy('type')->orderBy('billing_month')->get(),
             'selectedInvoice' => $request->integer('invoice') ?: null,
         ]);
     }
 
+    /**
+     * Pembayaran yang diterima langsung oleh admin (tunai / transfer yang dikonfirmasi admin).
+     * Karena admin sendiri yang menerima uangnya, pembayaran langsung disetujui dan tagihan ditandai lunas.
+     */
     public function storePayment(Request $request): RedirectResponse
     {
         $validated = $request->validate([
@@ -92,9 +100,110 @@ class FinanceController extends Controller
             $validated['proof_image'] = $request->file('proof_image')->store('payment-proofs', 'public');
         }
 
-        $this->billing->recordPayment($validated);
+        // Tagihan lain (charge) selalu dibayar satu tagihan utuh.
+        if (! empty($validated['invoice_id']) && Invoice::whereKey($validated['invoice_id'])->value('type') === 'charge') {
+            $validated['total_months_paid'] = 1;
+        }
 
-        return redirect()->route('billing')->with('status', 'Pembayaran berhasil dicatat dan menunggu persetujuan.');
+        $payment = $this->billing->recordPayment($validated);
+        $invoices = $this->billing->approvePayment($payment, 'Dicatat langsung oleh admin.');
+
+        return redirect()->route('billing')->with('status', 'Pembayaran dicatat dan langsung disetujui. '.$invoices->count().' tagihan lunas ('.$invoices->pluck('invoice_number')->join(', ').').');
+    }
+
+    /* ------------------------------------------------------------------
+     | Tagihan lain (custom charge): gas, iuran kebersihan, dll.
+     * ------------------------------------------------------------------ */
+
+    public function charges(): View
+    {
+        $this->billing->generateForMonth();
+
+        $charges = Charge::withCount([
+            'invoices',
+            'invoices as paid_count' => fn ($q) => $q->where('status', 'paid'),
+        ])->withSum('invoices', 'amount')
+            ->withSum(['invoices as paid_sum' => fn ($q) => $q->where('status', 'paid')], 'amount')
+            ->latest()
+            ->get();
+
+        return view('dashboard.charges', [
+            ...$this->sharedData('billing'),
+            'charges' => $charges,
+        ]);
+    }
+
+    public function createCharge(): View
+    {
+        return view('dashboard.forms.charge', [
+            ...$this->sharedData('billing'),
+            'categories' => config('billing.charge_categories'),
+            'rooms' => Room::with('activeRental.user')->orderBy('room_number')->get(),
+            'activeTenants' => Rental::where('status', 'active')->count(),
+        ]);
+    }
+
+    public function storeCharge(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'title' => ['required', 'string', 'max:150'],
+            'category' => ['required', Rule::in(array_keys(config('billing.charge_categories')))],
+            'description' => ['nullable', 'string', 'max:1000'],
+            'amount' => ['required', 'numeric', 'min:1000', 'max:100000000'],
+            'amount_mode' => ['required', Rule::in(array_keys(Charge::AMOUNT_MODES))],
+            'target' => ['required', Rule::in(array_keys(Charge::TARGETS))],
+            'room_ids' => ['required_if:target,rooms', 'array'],
+            'room_ids.*' => ['integer', 'exists:rooms,id'],
+            'is_recurring' => ['required', 'boolean'],
+            'start_month' => ['required', 'date_format:Y-m'],
+            'end_month' => ['nullable', 'date_format:Y-m', 'after_or_equal:start_month'],
+            'due_day' => ['required', 'integer', 'min:1', 'max:28'],
+        ], [
+            'title.required' => 'Nama tagihan wajib diisi.',
+            'amount.min' => 'Nominal minimal Rp 1.000.',
+            'room_ids.required_if' => 'Pilih minimal satu kamar.',
+            'end_month.after_or_equal' => 'Bulan terakhir tidak boleh sebelum bulan mulai.',
+        ]);
+
+        $charge = Charge::create([
+            ...$validated,
+            'room_ids' => $validated['target'] === 'rooms' ? array_map('intval', $validated['room_ids'] ?? []) : null,
+            'start_month' => Carbon::createFromFormat('!Y-m', $validated['start_month'])->toDateString(),
+            'end_month' => $validated['is_recurring'] && ! empty($validated['end_month'])
+                ? Carbon::createFromFormat('!Y-m', $validated['end_month'])->toDateString()
+                : null,
+            'created_by' => $request->user()->id,
+        ]);
+
+        // Terbitkan langsung bila bulan mulainya sudah tiba.
+        $created = $charge->start_month->lte(now()->startOfMonth())
+            ? $this->billing->issueCharge($charge, now()->startOfMonth()->max($charge->start_month))
+            : 0;
+
+        return redirect()->route('billing.charges')->with('status', $created > 0
+            ? "Tagihan \"{$charge->title}\" dibuat dan diterbitkan ke {$created} penghuni."
+            : "Tagihan \"{$charge->title}\" disimpan dan akan diterbitkan pada {$charge->start_month->translatedFormat('F Y')}.");
+    }
+
+    /** Hentikan tagihan berulang: bulan berikutnya tidak diterbitkan lagi (tagihan yang sudah terbit tetap). */
+    public function stopCharge(Charge $charge): RedirectResponse
+    {
+        $charge->update(['is_active' => false]);
+
+        return back()->with('status', "Tagihan \"{$charge->title}\" dihentikan. Tagihan yang sudah terbit tetap berlaku.");
+    }
+
+    /** Hapus tagihan beserta invoice yang belum dibayar. Ditolak bila sudah ada yang membayar. */
+    public function destroyCharge(Charge $charge): RedirectResponse
+    {
+        if ($charge->invoices()->whereIn('status', ['paid', 'pending'])->exists()) {
+            return back()->withErrors(['charge' => 'Tagihan ini sudah dibayar sebagian penghuni sehingga tidak dapat dihapus. Gunakan "Hentikan" untuk menghentikan penerbitan berikutnya.']);
+        }
+
+        $charge->invoices()->delete();
+        $charge->delete();
+
+        return back()->with('status', "Tagihan \"{$charge->title}\" dan invoice yang belum dibayar telah dihapus.");
     }
 
     public function approvePayment(Request $request, Payment $payment): RedirectResponse
@@ -129,12 +238,14 @@ class FinanceController extends Controller
         $invoices = Invoice::with('rental.user', 'rental.room')->forMonth($month)->orderBy('due_date')->get();
 
         return $this->csv("simakos-tagihan-{$month->format('Y-m')}.csv",
-            ['No. Tagihan', 'Penghuni', 'Kamar', 'Bulan', 'Jatuh Tempo', 'Sewa', 'Denda', 'Total', 'Status', 'Tanggal Lunas'],
+            ['No. Tagihan', 'Jenis', 'Keterangan', 'Penghuni', 'Kamar', 'Periode', 'Jatuh Tempo', 'Nominal', 'Denda', 'Total', 'Status', 'Tanggal Lunas'],
             $invoices->map(fn (Invoice $i) => [
                 $i->invoice_number,
+                Invoice::TYPES[$i->type] ?? $i->type,
+                $i->label(),
                 $i->rental?->user?->name ?? '-',
                 $i->rental?->room?->room_number ?? '-',
-                $i->billing_month->format('Y-m'),
+                $i->periodLabel(),
                 $i->due_date->format('Y-m-d'),
                 (float) $i->amount,
                 (float) $i->late_fee,

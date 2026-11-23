@@ -10,7 +10,7 @@ class GenerateMonthlyInvoices extends Command
 {
     protected $signature = 'billing:generate {--month= : Bulan tagihan format YYYY-MM (default: bulan ini)}';
 
-    protected $description = 'Generate tagihan sewa bulanan untuk semua kontrak aktif dan perbarui denda keterlambatan';
+    protected $description = 'Generate tagihan sewa (sesuai siklus bayar tiap kontrak) dan tagihan lain yang berlaku, lalu perbarui denda keterlambatan';
 
     public function handle(BillingService $billing): int
     {

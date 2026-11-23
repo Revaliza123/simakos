@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Charge;
 use App\Models\Expense;
 use App\Models\Invoice;
 use App\Models\Payment;
@@ -14,7 +15,8 @@ use Illuminate\Support\Facades\DB;
 class BillingService
 {
     /**
-     * Buat tagihan bulanan untuk setiap kontrak aktif pada bulan tertentu.
+     * Terbitkan semua tagihan untuk bulan tertentu: sewa kamar (sesuai siklus bayar tiap kontrak)
+     * dan tagihan lain (charge) yang berlaku bulan itu.
      * Aman dijalankan berulang kali: tagihan yang sudah ada tidak diduplikasi.
      *
      * @return int jumlah tagihan baru yang dibuat
@@ -22,23 +24,139 @@ class BillingService
     public function generateForMonth(?CarbonInterface $month = null): int
     {
         $monthStart = Carbon::parse($month ?? now())->startOfMonth();
-        $monthEnd = $monthStart->copy()->endOfMonth();
 
-        $rentals = Rental::with('room')
-            ->where('status', 'active')
-            ->whereDate('start_date', '<=', $monthEnd)
-            ->where(fn ($q) => $q->whereNull('end_date')->orWhereDate('end_date', '>=', $monthStart))
-            ->get();
+        return $this->generateRentForMonth($monthStart) + $this->generateChargesForMonth($monthStart);
+    }
 
+    /**
+     * Tagihan sewa. Kontrak bulanan ditagih tiap bulan; kontrak dengan siklus 3/6/12 bulan hanya ditagih
+     * di awal tiap siklus dengan nominal sewa x jumlah bulan. Bulan yang sudah tercakup tagihan
+     * sebelumnya (termasuk hasil bayar di muka) dilewati.
+     */
+    public function generateRentForMonth(CarbonInterface $monthStart): int
+    {
+        $monthStart = Carbon::parse($monthStart)->startOfMonth();
         $created = 0;
 
-        foreach ($rentals as $rental) {
-            if ($this->createInvoice($rental, $monthStart)) {
+        foreach ($this->activeRentalsIn($monthStart) as $rental) {
+            if ($this->rentInvoiceCovering($rental, $monthStart)) {
+                continue;
+            }
+
+            if ($this->createRentInvoice($rental, $monthStart, $this->periodFor($rental, $monthStart))) {
                 $created++;
             }
         }
 
         return $created;
+    }
+
+    /** Terbitkan tagihan lain (gas, iuran, dll.) yang berlaku pada bulan tertentu. */
+    public function generateChargesForMonth(CarbonInterface $monthStart): int
+    {
+        $monthStart = Carbon::parse($monthStart)->startOfMonth();
+
+        return Charge::dueInMonth($monthStart)->get()
+            ->sum(fn (Charge $charge) => $this->issueCharge($charge, $monthStart));
+    }
+
+    /**
+     * Buat invoice charge untuk setiap penghuni target pada bulan tertentu.
+     * Mode "split": total dibagi rata ke jumlah penghuni saat diterbitkan (sisa pembulatan ke penghuni pertama),
+     * dan tidak diterbitkan ulang. Mode "per_tenant": penghuni yang belum ditagih (mis. baru check-in) ikut ditagih.
+     */
+    public function issueCharge(Charge $charge, CarbonInterface $monthStart): int
+    {
+        $monthStart = Carbon::parse($monthStart)->startOfMonth();
+
+        $rentals = $this->activeRentalsIn($monthStart)
+            ->when($charge->target === 'rooms', fn (Collection $c) => $c->whereIn('room_id', $charge->room_ids ?? []))
+            ->sortBy(fn (Rental $r) => $r->room?->room_number)
+            ->values();
+
+        if ($rentals->isEmpty()) {
+            return 0;
+        }
+
+        $alreadyBilled = Invoice::charges()->where('charge_id', $charge->id)->forMonth($monthStart)->pluck('rental_id');
+
+        if ($charge->amount_mode === 'split' && $alreadyBilled->isNotEmpty()) {
+            return 0;
+        }
+
+        $amounts = $this->chargeAmounts($charge, $rentals->count());
+        $dueDate = $this->chargeDueDate($charge, $monthStart);
+        $created = 0;
+
+        foreach ($rentals as $index => $rental) {
+            if ($alreadyBilled->contains($rental->id)) {
+                continue;
+            }
+
+            Invoice::create([
+                'invoice_number' => sprintf('CHG-%s-%04d-%04d', $monthStart->format('Ym'), $charge->id, $rental->id),
+                'rental_id' => $rental->id,
+                'type' => 'charge',
+                'charge_id' => $charge->id,
+                'title' => $charge->title,
+                'billing_month' => $monthStart->toDateString(),
+                'period_months' => 1,
+                'due_date' => $dueDate->toDateString(),
+                'amount' => $amounts[$index],
+                'status' => 'unpaid',
+            ]);
+            $created++;
+        }
+
+        return $created;
+    }
+
+    /**
+     * Rencana pembayaran sewa untuk N bulan: tagihan sewa tertunggak (yang dipilih didahulukan),
+     * lalu bulan-bulan berikutnya bila bayar di muka. Satu tagihan siklus 3/6/12 bulan dibayar utuh.
+     *
+     * @return Collection<int, array{invoice: ?Invoice, month: Carbon, period: int, amount: float}>
+     */
+    public function rentPaymentPlan(Rental $rental, int $months, ?int $invoiceId = null, bool $includePending = false): Collection
+    {
+        $rental->loadMissing('room');
+        $months = max(1, $months);
+
+        $outstanding = Invoice::rent()
+            ->where('rental_id', $rental->id)
+            ->whereIn('status', $includePending ? ['unpaid', 'pending', 'overdue'] : ['unpaid', 'overdue'])
+            ->when($invoiceId, fn ($q) => $q->orderByRaw('id = ? desc', [$invoiceId]))
+            ->orderBy('billing_month')
+            ->get();
+
+        $plan = collect();
+        $covered = 0;
+
+        foreach ($outstanding as $invoice) {
+            if ($covered >= $months) {
+                break;
+            }
+            $plan->push(['invoice' => $invoice, 'month' => $invoice->billing_month->copy(), 'period' => (int) $invoice->period_months, 'amount' => $invoice->totalDue()]);
+            $covered += max(1, (int) $invoice->period_months);
+        }
+
+        $next = $this->nextBillingMonth($rental);
+        while ($covered < $months) {
+            $period = $this->periodFor($rental, $next);
+            $plan->push(['invoice' => null, 'month' => $next->copy(), 'period' => $period, 'amount' => (float) $rental->room->price * $period]);
+            $covered += $period;
+            $next = $next->copy()->addMonthsNoOverflow($period);
+        }
+
+        return $plan;
+    }
+
+    /** Pilihan "jumlah bulan dibayar" yang sesuai siklus bayar kontrak (kelipatan siklus, maks. 12 bulan). */
+    public function monthOptionsFor(Rental $rental): array
+    {
+        $cycle = max(1, (int) $rental->billing_cycle);
+
+        return $cycle === 1 ? [1, 2, 3, 6, 12] : range($cycle, 12, $cycle);
     }
 
     /**
@@ -74,7 +192,7 @@ class BillingService
     {
         return DB::transaction(function () use ($data): Payment {
             if (empty($data['invoice_id'])) {
-                $data['invoice_id'] = Invoice::where('rental_id', $data['rental_id'])
+                $data['invoice_id'] = Invoice::rent()->where('rental_id', $data['rental_id'])
                     ->whereIn('status', ['unpaid', 'overdue'])
                     ->orderBy('billing_month')
                     ->value('id');
@@ -93,32 +211,25 @@ class BillingService
     }
 
     /**
-     * Setujui pembayaran: tandai tagihan lunas sebanyak jumlah bulan yang dibayar.
-     * Bila jumlah bulan melebihi tagihan yang ada, tagihan bulan berikutnya dibuat
-     * dan langsung ditandai lunas (bayar di muka).
+     * Setujui pembayaran.
+     * - Tagihan lain (charge): hanya tagihan tersebut yang ditandai lunas.
+     * - Sewa: tagihan sewa dilunasi sebanyak jumlah bulan yang dibayar. Bila melebihi tagihan yang ada,
+     *   tagihan siklus berikutnya dibuat dan langsung ditandai lunas (bayar di muka).
      *
      * @return Collection<int, Invoice> tagihan yang dilunasi
      */
     public function approvePayment(Payment $payment, ?string $notes = null): Collection
     {
         return DB::transaction(function () use ($payment, $notes): Collection {
-            $payment->loadMissing('rental.room');
-            $paidAt = $payment->payment_date ?? now();
-            $months = max(1, (int) $payment->total_months_paid);
+            $payment->loadMissing('rental.room', 'invoice');
+            $paidAt = Carbon::parse($payment->payment_date ?? now());
 
-            $invoices = Invoice::where('rental_id', $payment->rental_id)
-                ->outstanding()
-                ->when($payment->invoice_id, fn ($q) => $q->orderByRaw('id = ? desc', [$payment->invoice_id]))
-                ->orderBy('billing_month')
-                ->limit($months)
-                ->get();
-
-            // Bayar di muka: buat tagihan bulan-bulan berikutnya.
-            $nextMonth = $this->nextBillingMonth($payment->rental);
-            while ($invoices->count() < $months) {
-                $invoice = $this->createInvoice($payment->rental, $nextMonth, force: true);
-                $invoices->push($invoice);
-                $nextMonth = $nextMonth->copy()->addMonthNoOverflow();
+            if ($payment->invoice && ! $payment->invoice->isRent()) {
+                $invoices = collect([$payment->invoice]);
+            } else {
+                $invoices = $this->rentPaymentPlan($payment->rental, (int) $payment->total_months_paid, $payment->invoice_id, includePending: true)
+                    ->map(fn (array $item) => $item['invoice']
+                        ?? $this->createRentInvoice($payment->rental, $item['month'], $item['period'], force: true));
             }
 
             foreach ($invoices as $invoice) {
@@ -135,7 +246,7 @@ class BillingService
                 'admin_notes' => $notes ?? $payment->admin_notes,
             ]);
 
-            return $invoices;
+            return $invoices->values();
         });
     }
 
@@ -186,7 +297,8 @@ class BillingService
             ->groupBy('rental_id')
             ->map(fn (Collection $invoices) => [
                 'rental' => $invoices->first()->rental,
-                'months' => $invoices->count(),
+                'months' => (int) $invoices->where('type', 'rent')->sum('period_months'),
+                'charges' => $invoices->where('type', 'charge')->count(),
                 'amount' => (float) $invoices->sum('amount'),
                 'late_fee' => (float) $invoices->sum('late_fee'),
                 'total' => $invoices->sum(fn (Invoice $i) => $i->totalDue()),
@@ -242,31 +354,101 @@ class BillingService
         return $due;
     }
 
-    private function createInvoice(Rental $rental, CarbonInterface $monthStart, bool $force = false): ?Invoice
+    private function createRentInvoice(Rental $rental, CarbonInterface $monthStart, int $period = 1, bool $force = false): ?Invoice
     {
         $monthStart = Carbon::parse($monthStart)->startOfMonth();
+        $number = sprintf('INV-%s-%04d', $monthStart->format('Ym'), $rental->id);
 
-        $existing = Invoice::where('rental_id', $rental->id)->forMonth($monthStart)->first();
+        $existing = Invoice::where('invoice_number', $number)->first();
         if ($existing) {
             return $force ? $existing : null;
         }
 
+        $period = max(1, $period);
+
         return Invoice::create([
-            'invoice_number' => sprintf('INV-%s-%04d', $monthStart->format('Ym'), $rental->id),
+            'invoice_number' => $number,
             'rental_id' => $rental->id,
+            'type' => 'rent',
             'billing_month' => $monthStart->toDateString(),
+            'period_months' => $period,
             'due_date' => $this->dueDateFor($rental, $monthStart)->toDateString(),
-            'amount' => (float) ($rental->room?->price ?? 0),
+            'amount' => (float) ($rental->room?->price ?? 0) * $period,
             'status' => 'unpaid',
         ]);
     }
 
+    /** Tagihan sewa yang sudah mencakup bulan tertentu (mis. tagihan 6 bulan yang diterbitkan 3 bulan lalu). */
+    private function rentInvoiceCovering(Rental $rental, Carbon $monthStart): ?Invoice
+    {
+        return Invoice::rent()
+            ->where('rental_id', $rental->id)
+            ->whereDate('billing_month', '<=', $monthStart->toDateString())
+            ->orderByDesc('billing_month')
+            ->get()
+            ->first(fn (Invoice $invoice) => $invoice->coversUntil()->greaterThanOrEqualTo($monthStart));
+    }
+
+    /**
+     * Jumlah bulan yang dicakup tagihan sewa yang dimulai pada bulan tertentu:
+     * sisa bulan sampai batas siklus berikutnya, dan tidak melewati akhir kontrak.
+     */
+    private function periodFor(Rental $rental, Carbon $monthStart): int
+    {
+        $cycle = max(1, (int) $rental->billing_cycle);
+        $startMonth = Carbon::parse($rental->start_date ?? $monthStart)->startOfMonth();
+        $offset = $monthStart->greaterThan($startMonth) ? (int) $startMonth->diffInMonths($monthStart) : 0;
+        $period = $cycle - ($offset % $cycle);
+
+        if ($rental->end_date) {
+            $monthsLeft = (int) $monthStart->diffInMonths($rental->end_date->copy()->startOfMonth()) + 1;
+            $period = min($period, max(1, $monthsLeft));
+        }
+
+        return max(1, $period);
+    }
+
     private function nextBillingMonth(Rental $rental): Carbon
     {
-        $last = Invoice::where('rental_id', $rental->id)->max('billing_month');
+        $last = Invoice::rent()->where('rental_id', $rental->id)->orderByDesc('billing_month')->first();
 
         return $last
-            ? Carbon::parse($last)->startOfMonth()->addMonthNoOverflow()
+            ? $last->coversUntil()->addMonthNoOverflow()
             : Carbon::parse($rental->start_date ?? now())->startOfMonth();
+    }
+
+    /** @return Collection<int, Rental> kontrak aktif yang masa sewanya mencakup bulan tertentu */
+    private function activeRentalsIn(Carbon $monthStart): Collection
+    {
+        return Rental::with('room')
+            ->where('status', 'active')
+            ->whereDate('start_date', '<=', $monthStart->copy()->endOfMonth())
+            ->where(fn ($q) => $q->whereNull('end_date')->orWhereDate('end_date', '>=', $monthStart))
+            ->get();
+    }
+
+    /** @return array<int, float> nominal per penghuni (urut sesuai daftar penghuni) */
+    private function chargeAmounts(Charge $charge, int $count): array
+    {
+        $total = (float) $charge->amount;
+
+        if ($charge->amount_mode !== 'split') {
+            return array_fill(0, $count, $total);
+        }
+
+        $share = floor($total / $count);
+        $amounts = array_fill(0, $count, $share);
+        $amounts[0] += round($total - $share * $count, 2);
+
+        return $amounts;
+    }
+
+    /** Jatuh tempo charge: tanggal due_day pada bulan tagihan; bila sudah lewat saat diterbitkan, 7 hari dari hari ini. */
+    private function chargeDueDate(Charge $charge, Carbon $monthStart): Carbon
+    {
+        $due = $monthStart->copy()->day(min(max((int) $charge->due_day, 1), 28));
+        $minimum = now()->startOfDay()->addDays(7);
+
+        return $due->lessThan(now()->startOfDay()) && $monthStart->isSameMonth(now()) ? $minimum : $due;
     }
 }

@@ -21,7 +21,12 @@ class Invoice extends Model
         'overdue' => 'Terlambat',
     ];
 
-    protected $fillable = ['invoice_number', 'rental_id', 'billing_month', 'due_date', 'amount', 'late_fee', 'status', 'paid_at'];
+    public const TYPES = [
+        'rent' => 'Sewa kamar',
+        'charge' => 'Tagihan lain',
+    ];
+
+    protected $fillable = ['invoice_number', 'rental_id', 'type', 'charge_id', 'title', 'billing_month', 'period_months', 'due_date', 'amount', 'late_fee', 'status', 'paid_at'];
 
     protected function casts(): array
     {
@@ -31,12 +36,18 @@ class Invoice extends Model
             'paid_at' => 'date',
             'amount' => 'decimal:2',
             'late_fee' => 'decimal:2',
+            'period_months' => 'integer',
         ];
     }
 
     public function rental(): BelongsTo
     {
         return $this->belongsTo(Rental::class);
+    }
+
+    public function charge(): BelongsTo
+    {
+        return $this->belongsTo(Charge::class);
     }
 
     public function payments(): HasMany
@@ -48,6 +59,47 @@ class Invoice extends Model
     public function scopeOutstanding(Builder $query): Builder
     {
         return $query->whereIn('status', ['unpaid', 'pending', 'overdue']);
+    }
+
+    public function scopeRent(Builder $query): Builder
+    {
+        return $query->where('type', 'rent');
+    }
+
+    public function scopeCharges(Builder $query): Builder
+    {
+        return $query->where('type', 'charge');
+    }
+
+    public function isRent(): bool
+    {
+        return $this->type !== 'charge';
+    }
+
+    /** Bulan terakhir yang dicakup tagihan ini (tagihan sewa bisa mencakup 3/6/12 bulan). */
+    public function coversUntil(): Carbon
+    {
+        return $this->billing_month->copy()->startOfMonth()->addMonthsNoOverflow(max(1, (int) $this->period_months) - 1);
+    }
+
+    /** Contoh: "November 2026" atau "Nov 2026 – Apr 2027" untuk tagihan beberapa bulan. */
+    public function periodLabel(): string
+    {
+        if ((int) $this->period_months <= 1) {
+            return $this->billing_month->translatedFormat('F Y');
+        }
+
+        return $this->billing_month->translatedFormat('M Y').' – '.$this->coversUntil()->translatedFormat('M Y');
+    }
+
+    /** Nama tagihan untuk ditampilkan, mis. "Sewa 6 bulan" atau "Isi ulang gas". */
+    public function label(): string
+    {
+        if (! $this->isRent()) {
+            return $this->title ?: 'Tagihan lain';
+        }
+
+        return (int) $this->period_months > 1 ? 'Sewa '.$this->period_months.' bulan' : 'Sewa bulanan';
     }
 
     public function scopeForMonth(Builder $query, CarbonInterface $month): Builder
@@ -74,7 +126,8 @@ class Invoice extends Model
     {
         $days = $this->daysOverdue($at);
 
-        if ($days === 0) {
+        // Denda keterlambatan hanya berlaku untuk sewa kamar, bukan tagihan lain.
+        if ($days === 0 || ! $this->isRent()) {
             return 0.0;
         }
 

@@ -8,7 +8,7 @@
         @forelse ($announcements as $announcement)
             <div class="tenant-notice">
                 <span class="announcement-icon blue"><span class="material-symbols-outlined">campaign</span></span>
-                <div><span class="status-badge blue"><i></i>{{ $announcement->published_at->translatedFormat('d M Y') }}</span><h3>{{ $announcement->title }}</h3><p style="white-space:pre-line">{{ $announcement->content }}</p><small class="empty-note">Oleh {{ $announcement->creator?->name ?? 'Pengelola' }}</small></div>
+                <div><span class="status-badge blue"><i></i>{{ $announcement->published_at->translatedFormat('d M Y') }}</span><h3>{{ $announcement->title }}</h3><p style="white-space:pre-line">{{ $announcement->content }}</p>@include('components.announcement-media')<small class="empty-note">Oleh {{ $announcement->creator?->name ?? 'Pengelola' }}</small></div>
             </div>
         @empty
             <p class="empty-note">Belum ada pengumuman.</p>

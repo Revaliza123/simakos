@@ -34,7 +34,7 @@ class TenantPortalController extends Controller
             'outstanding' => $this->invoicesOf($user)->outstanding()->orderBy('billing_month')->get(),
             'latestPayment' => $this->paymentsOf($user)->latest('id')->first(),
             'complaints' => $this->complaintsOf($user)->latest()->limit(3)->get(),
-            'announcements' => Announcement::published()->latest('published_at')->limit(3)->get(),
+            'announcements' => Announcement::published()->with('media')->latest('published_at')->limit(3)->get(),
         ]);
     }
 
@@ -45,12 +45,18 @@ class TenantPortalController extends Controller
         $this->syncInvoices();
         $rental = $user->activeRental();
 
+        $payable = $rental
+            ? Invoice::where('rental_id', $rental->id)->whereIn('status', ['unpaid', 'overdue'])->orderBy('type')->orderBy('billing_month')->get()
+            : collect();
+        $monthOptions = $rental ? $this->billing->monthOptionsFor($rental) : [];
+
         return view('tenant.bills', [
             ...$this->portalData($user, 'tenant-bills', $rental),
-            'invoices' => $this->invoicesOf($user)->with('rental.room')->orderByDesc('billing_month')->get(),
-            'payable' => $rental
-                ? Invoice::where('rental_id', $rental->id)->whereIn('status', ['unpaid', 'overdue'])->orderBy('billing_month')->get()
-                : collect(),
+            'invoices' => $this->invoicesOf($user)->with('rental.room')->orderByDesc('billing_month')->orderBy('type')->get(),
+            'payable' => $payable,
+            'monthOptions' => $monthOptions,
+            // Nominal dihitung server untuk setiap kombinasi tagihan x jumlah bulan (dipakai pratinjau di form).
+            'amountPreview' => $rental ? $this->amountPreview($rental, $payable, $monthOptions) : [],
             'payments' => $this->paymentsOf($user)->with('invoice')->latest('id')->get(),
             'hasPendingPayment' => $rental && Payment::where('rental_id', $rental->id)->where('status', 'pending')->exists(),
             'selectedInvoice' => $request->integer('invoice') ?: null,
@@ -75,9 +81,10 @@ class TenantPortalController extends Controller
                 'nullable',
                 Rule::exists('invoices', 'id')->where('rental_id', $rental->id)->whereIn('status', ['unpaid', 'overdue']),
             ],
-            'total_months_paid' => ['required', 'integer', 'min:1', 'max:12'],
+            'total_months_paid' => ['required', 'integer', Rule::in($this->billing->monthOptionsFor($rental))],
             'proof_image' => ['required', 'file', 'mimes:jpg,jpeg,png', 'max:2048'],
         ], [
+            'total_months_paid.in' => 'Jumlah bulan harus sesuai siklus bayar kontrak Anda ('.$rental->billingCycleLabel().').',
             'invoice_id.exists' => 'Tagihan yang dipilih tidak valid atau sudah dibayar.',
             'proof_image.required' => 'Bukti transfer wajib diunggah.',
             'proof_image.mimes' => 'Format file harus jpg, png.',
@@ -85,7 +92,9 @@ class TenantPortalController extends Controller
         ]);
 
         $this->billing->refreshOverdue();
-        $months = (int) $validated['total_months_paid'];
+        $invoice = isset($validated['invoice_id']) ? Invoice::find($validated['invoice_id']) : null;
+        // Tagihan lain (gas, iuran, dll.) dibayar per tagihan, bukan per bulan sewa.
+        $months = $invoice && ! $invoice->isRent() ? 1 : (int) $validated['total_months_paid'];
 
         $this->billing->recordPayment([
             'rental_id' => $rental->id,
@@ -155,7 +164,7 @@ class TenantPortalController extends Controller
     {
         return view('tenant.announcements', [
             ...$this->portalData($request->user(), 'tenant-announcements'),
-            'announcements' => Announcement::published()->with('creator')->latest('published_at')->get(),
+            'announcements' => Announcement::published()->with(['creator', 'media'])->latest('published_at')->get(),
         ]);
     }
 
@@ -203,19 +212,31 @@ class TenantPortalController extends Controller
 
     /**
      * Hitung nominal di sisi server (penghuni tidak mengetik nominal sendiri):
-     * tagihan tertunggak yang tercakup (termasuk denda) + sewa bulan berikutnya bila bayar di muka.
+     * - tagihan lain: total tagihan tersebut;
+     * - sewa: tagihan sewa tertunggak yang tercakup (termasuk denda) + sewa siklus berikutnya bila bayar di muka.
      */
     private function amountFor(Rental $rental, int $months, ?int $invoiceId): float
     {
-        /** @var Collection<int, Invoice> $covered */
-        $covered = Invoice::where('rental_id', $rental->id)
-            ->whereIn('status', ['unpaid', 'overdue'])
-            ->when($invoiceId, fn ($q) => $q->orderByRaw('id = ? desc', [$invoiceId]))
-            ->orderBy('billing_month')
-            ->limit($months)
-            ->get();
+        $invoice = $invoiceId ? Invoice::find($invoiceId) : null;
 
-        return round($covered->sum(fn (Invoice $i) => $i->totalDue())
-            + (float) $rental->room->price * max(0, $months - $covered->count()), 2);
+        if ($invoice && ! $invoice->isRent()) {
+            return round($invoice->totalDue(), 2);
+        }
+
+        return round($this->billing->rentPaymentPlan($rental, $months, $invoiceId)->sum('amount'), 2);
+    }
+
+    /** @return array<string, array<int, float>> [invoiceId|"auto" => [jumlah bulan => nominal]] */
+    private function amountPreview(Rental $rental, Collection $payable, array $monthOptions): array
+    {
+        $preview = [];
+
+        foreach ([null, ...$payable->pluck('id')->all()] as $invoiceId) {
+            foreach ($monthOptions as $months) {
+                $preview[$invoiceId ?? 'auto'][$months] = $this->amountFor($rental, $months, $invoiceId);
+            }
+        }
+
+        return $preview;
     }
 }

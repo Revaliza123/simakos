@@ -13,7 +13,7 @@
 
     <section class="panel table-panel finance-section">
         <div class="panel-heading">
-            <div><h2>Tagihan {{ $month->translatedFormat('F Y') }}</h2><p>Dibuat otomatis tiap bulan · jatuh tempo tgl {{ config('billing.due_day') }} · denda {{ rupiah(config('billing.late_fee_per_day')) }}/hari (maks. {{ config('billing.late_fee_max_percent') }}% sewa)</p></div>
+            <div><h2>Tagihan {{ $month->translatedFormat('F Y') }}</h2><p>Diterbitkan otomatis sesuai siklus bayar tiap kontrak (bulanan / 3 / 6 / 12 bulan) · jatuh tempo tgl {{ config('billing.due_day') }} · denda sewa {{ rupiah(config('billing.late_fee_per_day')) }}/hari (maks. {{ config('billing.late_fee_max_percent') }}%) · {{ $activeCharges }} tagihan lain aktif</p></div>
             <form class="filter-bar" method="GET" action="{{ route('billing') }}">
                 <input type="month" name="month" value="{{ $month->format('Y-m') }}" onchange="this.form.submit()" aria-label="Bulan tagihan">
                 @if ($status)<input type="hidden" name="status" value="{{ $status }}">@endif
@@ -28,11 +28,11 @@
         </div>
         <div class="table-scroll">
             <table>
-                <thead><tr><th>No. Tagihan</th><th>Penghuni</th><th>Kamar</th><th>Jatuh Tempo</th><th>Sewa</th><th>Denda</th><th>Total</th><th>Status</th><th></th></tr></thead>
+                <thead><tr><th>No. Tagihan</th><th>Penghuni</th><th>Kamar</th><th>Jatuh Tempo</th><th>Nominal</th><th>Denda</th><th>Total</th><th>Status</th><th></th></tr></thead>
                 <tbody>
                 @forelse ($invoices as $invoice)
                     <tr>
-                        <td><b>{{ $invoice->invoice_number }}</b><small>{{ $invoice->billing_month->translatedFormat('F Y') }}</small></td>
+                        <td><b>{{ $invoice->invoice_number }}</b><small><span class="type-chip {{ $invoice->type }}">{{ $invoice->label() }}</span> {{ $invoice->periodLabel() }}</small></td>
                         <td><b>{{ $invoice->rental?->user?->name ?? '-' }}</b><small>{{ $invoice->rental?->user?->email ?? '-' }}</small></td>
                         <td>{{ $invoice->rental?->room?->room_number ?? '-' }}</td>
                         <td>{{ $invoice->due_date->format('d M Y') }}@if ($invoice->status === 'overdue')<small class="danger-text">Terlambat {{ $invoice->daysOverdue() }} hari</small>@elseif ($invoice->paid_at)<small>Lunas {{ $invoice->paid_at->format('d M Y') }}</small>@endif</td>
@@ -60,7 +60,7 @@
                     @forelse ($payments as $payment)
                         <tr>
                             <td><b>{{ $payment->rental?->user?->name ?? '-' }}</b><small>Kamar {{ $payment->rental?->room?->room_number ?? '-' }}</small></td>
-                            <td>{{ $payment->invoice?->invoice_number ?? '-' }}<small>{{ $payment->total_months_paid }} bulan</small></td>
+                            <td>{{ $payment->invoice?->invoice_number ?? '-' }}<small>{{ $payment->invoice && ! $payment->invoice->isRent() ? $payment->invoice->label() : $payment->total_months_paid.' bulan sewa' }}</small></td>
                             <td><b>{{ rupiah($payment->amount) }}</b>@if ($payment->proof_image)<small><a class="text-link" href="{{ asset('storage/'.$payment->proof_image) }}" target="_blank" rel="noopener">Lihat bukti</a></small>@endif</td>
                             <td>{{ $payment->payment_date?->format('d M Y') }}</td>
                             <td><span class="status-badge {{ $payment->status === 'approved' ? 'available' : ($payment->status === 'rejected' ? 'occupied' : 'maintenance') }}"><i></i>{{ ['pending' => 'Menunggu', 'approved' => 'Disetujui', 'rejected' => 'Ditolak'][$payment->status] ?? $payment->status }}</span>@if ($payment->admin_notes)<small>{{ $payment->admin_notes }}</small>@endif</td>
@@ -91,7 +91,7 @@
                         <span class="activity-avatar {{ $row['late_fee'] > 0 ? 'orange' : 'blue' }}"><span class="material-symbols-outlined">person</span></span>
                         <div>
                             <strong>{{ $row['rental']?->user?->name ?? '-' }}</strong>
-                            <p>Kamar {{ $row['rental']?->room?->room_number ?? '-' }} · {{ $row['months'] }} bulan sejak {{ \Illuminate\Support\Carbon::parse($row['oldest'])->translatedFormat('M Y') }}</p>
+                            <p>Kamar {{ $row['rental']?->room?->room_number ?? '-' }}@if ($row['months']) · {{ $row['months'] }} bulan sewa @endif @if ($row['charges']) · {{ $row['charges'] }} tagihan lain @endif · sejak {{ \Illuminate\Support\Carbon::parse($row['oldest'])->translatedFormat('M Y') }}</p>
                         </div>
                         <div class="arrears-amount"><b>{{ rupiah($row['total']) }}</b>@if ($row['late_fee'] > 0)<small class="danger-text">denda {{ rupiah($row['late_fee']) }}</small>@endif</div>
                     </div>

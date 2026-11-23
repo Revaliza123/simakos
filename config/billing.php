@@ -28,4 +28,18 @@ return [
         'gaji' => 'Gaji Karyawan',
         'lainnya' => 'Lainnya',
     ],
+
+    /*
+    | Kategori tagihan lain di luar sewa (menu Payment & Billing > Tagihan Lain).
+    */
+    'charge_categories' => [
+        'gas' => 'Gas',
+        'kebersihan' => 'Iuran kebersihan',
+        'listrik' => 'Listrik tambahan',
+        'air' => 'Air',
+        'internet' => 'Internet',
+        'keamanan' => 'Keamanan',
+        'kerusakan' => 'Ganti rugi kerusakan',
+        'lainnya' => 'Lainnya',
+    ],
 ];

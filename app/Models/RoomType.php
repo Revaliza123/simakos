@@ -10,10 +10,21 @@ class RoomType extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'description'];
+    protected $fillable = ['name', 'description', 'facilities'];
+
+    protected function casts(): array
+    {
+        return ['facilities' => 'array'];
+    }
 
     public function rooms(): HasMany
     {
         return $this->hasMany(Room::class);
+    }
+
+    /** @return array<int, array{key:string, label:string, icon:string}> */
+    public function facilityList(): array
+    {
+        return Room::describeFacilities($this->facilities ?? []);
     }
 }

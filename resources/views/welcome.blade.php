@@ -41,9 +41,20 @@
                 <div class="room-grid">
                     @foreach ($typeRooms as $room)
                         <article class="room-card">
-                            <div class="room-visual available"><span class="room-number">Kamar {{ $room->room_number }}</span><span class="status-badge available"><i></i>Tersedia</span><span class="floor-label">{{ $typeName }}</span></div>
+                            @php($cover = $room->photos->first())
+                            <div class="room-visual available {{ $cover ? 'has-photo' : '' }}">
+                                @if ($cover)<img src="{{ $cover->url() }}" alt="Foto Kamar {{ $room->room_number }}" loading="lazy">@endif
+                                <span class="room-number">Kamar {{ $room->room_number }}</span><span class="status-badge available"><i></i>Tersedia</span><span class="floor-label">{{ $room->floorLabel() }}@if ($room->sizeLabel()) · {{ $room->sizeLabel() }}@endif</span>
+                            </div>
                             <div class="room-body">
                                 <div><h3>{{ $typeName }}</h3><strong class="room-price">{{ rupiah($room->price) }} <small>/bulan</small></strong></div>
+                                @if ($room->facilityList())
+                                    <ul class="facility-chips">
+                                        @foreach ($room->facilityList() as $facility)
+                                            <li><span class="material-symbols-outlined">{{ $facility['icon'] }}</span>{{ $facility['label'] }}</li>
+                                        @endforeach
+                                    </ul>
+                                @endif
                                 <div class="room-tenant"><span class="tenant-icon"><span class="material-symbols-outlined">verified</span></span><span><b>Siap dihuni</b><small>Hubungi pengelola untuk survei & check-in</small></span></div>
                             </div>
                         </article>

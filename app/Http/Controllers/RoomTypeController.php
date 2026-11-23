@@ -24,12 +24,13 @@ class RoomTypeController extends Controller
         return view('dashboard.forms.room-type', [
             ...$this->sharedData('room-types'),
             'roomType' => new RoomType,
+            'facilities' => config('simakos.facilities'),
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
-        RoomType::create($this->validated($request));
+        RoomType::create($this->attributes($request));
 
         return redirect()->route('room-types.index')->with('status', 'Tipe kamar berhasil ditambahkan.');
     }
@@ -39,12 +40,13 @@ class RoomTypeController extends Controller
         return view('dashboard.forms.room-type', [
             ...$this->sharedData('room-types'),
             'roomType' => $roomType,
+            'facilities' => config('simakos.facilities'),
         ]);
     }
 
     public function update(Request $request, RoomType $roomType): RedirectResponse
     {
-        $roomType->update($this->validated($request, $roomType));
+        $roomType->update($this->attributes($request, $roomType));
 
         return redirect()->route('room-types.index')->with('status', 'Tipe kamar berhasil diperbarui.');
     }
@@ -60,11 +62,20 @@ class RoomTypeController extends Controller
         return redirect()->route('room-types.index')->with('status', 'Tipe kamar berhasil dihapus.');
     }
 
+    private function attributes(Request $request, ?RoomType $roomType = null): array
+    {
+        $validated = $this->validated($request, $roomType);
+
+        return [...$validated, 'facilities' => array_values($validated['facilities'] ?? [])];
+    }
+
     private function validated(Request $request, ?RoomType $roomType = null): array
     {
         return $request->validate([
             'name' => ['required', 'string', 'max:100', Rule::unique('room_types', 'name')->ignore($roomType?->id)],
             'description' => ['nullable', 'string', 'max:2000'],
+            'facilities' => ['nullable', 'array'],
+            'facilities.*' => ['string', Rule::in(array_keys(config('simakos.facilities')))],
         ], [
             'name.unique' => 'Nama tipe kamar sudah terdaftar.',
         ]);

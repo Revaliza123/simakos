@@ -21,7 +21,7 @@
                         <td><b>{{ $rental->user?->name ?? '-' }}</b><small>{{ $rental->user?->email }}{{ $rental->user?->phone_number ? ' · '.$rental->user->phone_number : '' }}</small></td>
                         <td><b>Kamar {{ $rental->room?->room_number ?? '-' }}</b><small>{{ $rental->room?->roomType?->name ?? 'Tanpa tipe' }}</small></td>
                         <td>{{ $rental->start_date->translatedFormat('d M Y') }}</td>
-                        <td>{{ $rental->end_date?->translatedFormat('d M Y') ?? 'Tidak ditentukan' }}</td>
+                        <td>{{ $rental->end_date?->translatedFormat('d M Y') ?? 'Tidak ditentukan' }}<small>Bayar: {{ $rental->billingCycleLabel() }}</small></td>
                         <td><span class="status-badge {{ $rental->status === 'active' ? 'available' : 'maintenance' }}"><i></i>{{ ['active' => 'Aktif', 'completed' => 'Selesai', 'cancelled' => 'Dibatalkan'][$rental->status] ?? $rental->status }}</span></td>
                         <td>
                             @if ($rental->status === 'active')

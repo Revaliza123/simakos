@@ -65,8 +65,8 @@ class SimakosRequirementsTest extends TestCase
         $type = RoomType::create(['name' => 'Deluxe']);
         $this->actingAs($this->admin);
 
-        $this->post(route('rooms.store'), ['room_number' => 'A101', 'room_type_id' => $type->id, 'price' => 1500000, 'status' => 'available'])
-            ->assertRedirect(route('rooms'));
+        $response = $this->post(route('rooms.store'), ['room_number' => 'A101', 'room_type_id' => $type->id, 'price' => 1500000, 'status' => 'available']);
+        $response->assertRedirect(route('rooms.show', Room::sole()));
         $this->assertDatabaseHas('rooms', ['room_number' => 'A101', 'status' => 'available']);
         $this->get(route('rooms'))->assertOk()->assertSee('Kamar A101');
 
@@ -84,7 +84,7 @@ class SimakosRequirementsTest extends TestCase
         $this->assertSame('Standard Single', $type->fresh()->name);
 
         $room = Room::create(['room_number' => 'B201', 'room_type_id' => $type->id, 'price' => 900000, 'status' => 'available']);
-        $this->put(route('rooms.update', $room), ['room_number' => 'B202', 'room_type_id' => $type->id, 'price' => 950000, 'status' => 'maintenance'])->assertRedirect(route('rooms'));
+        $this->put(route('rooms.update', $room), ['room_number' => 'B202', 'room_type_id' => $type->id, 'price' => 950000, 'status' => 'maintenance'])->assertRedirect(route('rooms.show', $room));
         $this->assertDatabaseHas('rooms', ['id' => $room->id, 'room_number' => 'B202', 'status' => 'maintenance']);
 
         // Tipe yang masih dipakai tidak boleh dihapus.
@@ -346,6 +346,11 @@ class SimakosRequirementsTest extends TestCase
         $this->post(route('tenant.payments.store'), [
             'invoice_id' => $bobInvoice->id, 'total_months_paid' => 1, 'proof_image' => UploadedFile::fake()->image('x.jpg'),
         ])->assertSessionHasErrors('invoice_id');
+
+        // TC-UC01-01: akses langsung URL /admin/dashboard oleh Tenant ditolak RoleMiddleware.
+        $this->get('/admin/dashboard')->assertForbidden();
+        $this->actingAs($this->admin)->get('/admin/dashboard')->assertRedirect('/admin/overview');
+        $this->actingAs($alice);
 
         // Rute admin tidak dapat diakses penghuni.
         $this->get(route('billing'))->assertForbidden();

@@ -2017,3 +2017,166 @@ textarea { width: 100%; border: 1px solid #cbd5e1; border-radius: 7px; padding: 
 .reject-box summary::-webkit-details-marker { display: none }
 .reject-box form { display: grid; gap: 6px; margin-top: 6px }
 .reject-box textarea { min-width: 0; width: 100%; font-size: 11px }
+.chart-area .chart-x { position: absolute; left: 0; right: 0; bottom: 0; align-items: flex-end }
+
+/* ===== Room Management: foto, fasilitas, popup detail ===== */
+a.room-visual { display: block; text-decoration: none; overflow: hidden }
+.room-visual.has-photo { background: #0f172a }
+.room-visual img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform .3s }
+.room-visual:hover img { transform: scale(1.04) }
+.room-visual.has-photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, #0f172a73 0%, transparent 40%, transparent 55%, #0f172acc 100%) }
+.room-visual > span { position: relative; z-index: 1 }
+.room-visual .status-badge, .room-visual .floor-label { position: absolute; z-index: 1 }
+.room-visual-empty.material-symbols-outlined { position: absolute; right: 18px; bottom: 6px; font-size: 64px; opacity: .25 }
+.photo-count { position: absolute !important; right: 14px; bottom: 12px; display: inline-flex; align-items: center; gap: 3px; font: 600 10px Inter, sans-serif; background: #0f172a99; padding: 3px 7px; border-radius: 999px }
+.photo-count .material-symbols-outlined { font-size: 13px }
+.room-tenant small.remaining { color: var(--green); font-weight: 600 }
+.room-tenant small.remaining.soon { color: var(--orange) }
+.warning-text { color: var(--orange) !important; font-weight: 600 }
+
+.facility-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px }
+.facility-chips li { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 999px; background: var(--blue-soft); color: #1e40af; font: 500 10px Inter, sans-serif }
+.facility-chips li .material-symbols-outlined { font-size: 14px }
+.facility-chips li.more { background: #f1f5f9; color: var(--muted) }
+td .facility-chips { margin-top: 8px }
+.facility-chips.large li { padding: 7px 11px; font-size: 11px; border-radius: 8px }
+.facility-chips.large li .material-symbols-outlined { font-size: 17px }
+
+.field-label { display: block; color: var(--ink); font: 600 12px Inter, sans-serif; margin-bottom: 4px }
+.field-hint { color: var(--muted); font-size: 11px; margin: 0 0 10px }
+.facility-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px }
+.facility-option { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); font-weight: 500; cursor: pointer; background: #fff }
+.facility-option input { width: 15px; height: 15px; margin: 0; flex: none; accent-color: var(--blue) }
+.facility-option .material-symbols-outlined { font-size: 18px; color: var(--blue) }
+.facility-option:has(input:checked) { border-color: #93c5fd; background: var(--blue-soft) }
+.facility-option.inherited { cursor: default; opacity: .8 }
+.facility-option.inherited::after { content: "tipe"; margin-left: auto; font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em }
+
+.photo-manager { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-bottom: 12px }
+.photo-tile { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff }
+.photo-tile img { display: block; width: 100%; height: 100px; object-fit: cover }
+.photo-choice { display: flex; align-items: center; gap: 6px; padding: 6px 9px; font-weight: 500; cursor: pointer }
+.photo-choice input { width: 14px; height: 14px; margin: 0 }
+.upload-drop { position: relative; display: flex; align-items: center; gap: 10px; padding: 16px; border: 1.5px dashed #93c5fd; border-radius: 10px; background: #f8fbff; color: var(--muted); font-weight: 400; cursor: pointer }
+.upload-drop .material-symbols-outlined { font-size: 28px; color: var(--blue) }
+.upload-drop b { color: var(--blue) }
+.upload-drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; height: 100% }
+.photo-preview { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px }
+.photo-preview img { width: 88px; height: 66px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line) }
+
+
+.room-detail { padding: 22px 26px 26px }
+.room-detail-top { display: grid; grid-template-columns: 1.45fr 1fr; gap: 20px }
+.gallery-main { display: block; width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 10px; background: #f1f5f9 }
+.gallery-thumbs { display: flex; gap: 8px; margin-top: 8px; overflow-x: auto }
+.gallery-thumbs button { flex: none; width: 74px; height: 54px; padding: 0; border: 2px solid transparent; border-radius: 7px; overflow: hidden; cursor: pointer; background: none; opacity: .7 }
+.gallery-thumbs button.active { border-color: var(--blue); opacity: 1 }
+.gallery-thumbs img { width: 100%; height: 100%; object-fit: cover; display: block }
+.gallery-empty { height: auto; aspect-ratio: 4/3; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; font-size: 12px; text-align: center }
+.gallery-empty .material-symbols-outlined { font-size: 44px }
+.gallery-empty a { color: #fff; font-weight: 600 }
+.spec-list { display: grid; gap: 12px; align-content: start }
+.spec-price { display: grid; padding: 14px 16px; border-radius: 10px; background: var(--blue-soft) }
+.spec-price small { color: var(--muted); font-size: 11px }
+.spec-price strong { color: var(--blue); font-size: 22px }
+.spec-list dl, .period-grid { margin: 0; display: grid; gap: 0 }
+.spec-list dl div { display: flex; justify-content: space-between; gap: 10px; padding: 9px 2px; border-bottom: 1px solid #f1f5f9; font-size: 12px }
+.spec-list dt, .period-grid dt { color: var(--muted) }
+.spec-list dd, .period-grid dd { margin: 0; font-weight: 600; text-align: right }
+.detail-section { margin-top: 22px }
+.detail-section h3 { font-size: 14px; margin: 0 0 10px }
+.detail-section > p { margin: 0; color: #334155; font-size: 13px; line-height: 1.6 }
+.current-tenant { display: grid; gap: 14px; padding: 16px; border: 1px solid var(--line); border-radius: 10px }
+.current-tenant-person { display: flex; gap: 10px; align-items: flex-start }
+.current-tenant-person b, .current-tenant-person small { display: block }
+.current-tenant-person small { color: var(--muted); font-size: 11px; margin-top: 2px }
+.period-grid { grid-template-columns: repeat(3, 1fr); gap: 10px }
+.period-grid div { padding: 10px 12px; border-radius: 8px; background: #f8fafc }
+.period-grid dt { font-size: 10px; margin-bottom: 3px }
+.period-grid dd { text-align: left; font-size: 12px }
+.current-tenant form { justify-self: start }
+.compact-table { min-width: 560px; font-size: 12px }
+.compact-table th, .compact-table td { padding: 9px 10px }
+.status-badge.neutral { color: #475569; background: #f1f5f9 }
+.complaint-mini { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px }
+.complaint-mini li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 12px }
+.complaint-mini small { display: block; color: var(--muted); font-size: 11px }
+
+/* Kartu kamar publik (landing & portal penghuni) */
+.public-room-photo { width: 100%; height: 100%; object-fit: cover; display: block }
+
+@media (max-width: 760px) {
+    .room-detail { padding: 18px }
+    .room-detail-top { grid-template-columns: 1fr }
+    .period-grid { grid-template-columns: 1fr 1fr }
+}
+.tenant-room-illustration.has-photo { width: 200px; height: 140px; padding: 0; overflow: hidden; display: block }
+
+/* Tombol kartu kamar: satu baris di bagian bawah kartu */
+.room-grid .room-card { display: flex; flex-direction: column }
+.room-grid .room-card .room-body { flex: 1; display: flex; flex-direction: column; gap: 15px }
+.room-actions { margin-top: auto; display: flex; align-items: center; gap: 8px; padding-top: 4px }
+.room-actions > .button { flex: 1; min-width: 0; padding: 0 10px }
+.room-actions > .button .material-symbols-outlined { font-size: 18px }
+.room-actions form { margin: 0; display: flex }
+.icon-action { display: inline-grid; place-items: center; flex: none; width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--blue); cursor: pointer; padding: 0 }
+.icon-action .material-symbols-outlined { font-size: 19px }
+.icon-action:hover { background: var(--blue-soft); border-color: #bfdbfe }
+.icon-action.danger { color: var(--red) }
+.icon-action.danger:hover { background: #fff1f2; border-color: #fecdd3 }
+.row-actions .icon-action { width: 32px; height: 32px }
+
+/* Billing: jenis tagihan, tagihan lain */
+.type-chip { display: inline-block; padding: 2px 7px; border-radius: 999px; font: 600 9px Inter, sans-serif; background: var(--blue-soft); color: #1e40af; white-space: nowrap }
+.type-chip.charge { background: #f5f3ff; color: var(--purple) }
+.choice-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px }
+.choice-card { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; background: #fff; color: var(--ink); font-weight: 400 }
+.choice-card input { width: 16px; height: 16px; margin: 2px 0 0; flex: none; accent-color: var(--blue) }
+.choice-card b, .choice-card small { display: block }
+.choice-card b { font-size: 12px }
+.choice-card small { color: var(--muted); font-size: 11px; margin-top: 2px }
+.choice-card:has(input:checked) { border-color: #93c5fd; background: var(--blue-soft) }
+.room-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; margin-top: 10px }
+.room-picker[hidden] { display: none }
+.room-picker .facility-option b, .room-picker .facility-option small { display: block }
+.room-picker .facility-option small { color: var(--muted); font-size: 10px; font-weight: 400 }
+.room-picker .facility-option:has(input:disabled) { opacity: .5; cursor: not-allowed }
+[data-months-field][hidden], [data-recurring-only][hidden] { display: none }
+.period-grid { grid-template-columns: repeat(4, 1fr) }
+.period-grid div:last-child { grid-column: span 2 }
+.tenant-actions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px }
+.cycle-form { display: flex; gap: 8px; margin: 0 }
+.cycle-form select { width: auto; min-width: 180px }
+@media (max-width: 760px) {
+    .period-grid { grid-template-columns: 1fr 1fr }
+    .room-actions > .button { padding: 0 8px }
+}
+
+/* Halaman detail kamar */
+.room-title { display: flex; align-items: center; gap: 12px; flex-wrap: wrap }
+.room-title .status-badge { font-size: 11px }
+.page-heading .eyebrow a { color: inherit; text-decoration: none }
+.page-heading .eyebrow a:hover { text-decoration: underline }
+.room-detail-page { max-width: 1100px }
+.room-detail-page .detail-section:first-of-type { margin-top: 26px }
+
+/* Lampiran pengumuman */
+.photo-tile video { display: block; width: 100%; height: 100px; object-fit: cover; background: #0f172a }
+.photo-preview video { width: 88px; height: 66px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); background: #0f172a }
+.media-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 6px }
+.media-thumb { position: relative; display: block; width: 92px; height: 66px; border-radius: 8px; overflow: hidden; background: #0f172a; border: 1px solid var(--line) }
+.media-thumb img, .media-thumb video { width: 100%; height: 100%; object-fit: cover; display: block }
+.media-play.material-symbols-outlined { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 28px; background: #0f172a55 }
+.media-more { color: var(--muted); font: 600 11px Inter, sans-serif }
+.media-gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 12px 0 10px; max-width: 760px }
+.media-gallery.single { grid-template-columns: 1fr }
+.media-gallery img, .media-gallery video { display: block; width: 100%; max-height: 420px; object-fit: cover; border-radius: 10px; background: #0f172a }
+.media-gallery.single img { object-fit: contain; background: #f1f5f9 }
+.media-gallery video { object-fit: contain }
+.media-embed { position: relative; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden; background: #0f172a }
+.media-embed iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0 }
+.announcement-card .card-actions { justify-content: flex-start; gap: 8px }
+.announcement-card .card-actions .icon-action { width: 34px; height: 34px }
+@media (max-width: 760px) { .media-gallery { grid-template-columns: 1fr } }
+.media-gallery > a img, .media-gallery > video { aspect-ratio: 4 / 3; height: auto; max-height: none }
+.media-gallery.single > a img, .media-gallery.single > video { aspect-ratio: auto; max-height: 480px }

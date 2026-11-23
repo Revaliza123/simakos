@@ -14,12 +14,24 @@
             <div>
                 <span class="eyebrow">KAMAR SAAT INI</span>
                 <h2>Kamar {{ $rental->room->room_number }} <span>· {{ $rental->room->roomType?->name ?? 'Properti SIMAKOS' }}</span></h2>
-                <p>{{ rupiah($rental->room->price) }}/bulan · Mulai {{ $rental->start_date->translatedFormat('d M Y') }} · {{ $rental->end_date ? 'Sewa aktif sampai '.$rental->end_date->translatedFormat('d M Y') : 'Sewa bulanan tanpa batas waktu' }}</p>
+                <p>{{ rupiah($rental->room->price) }}/bulan · Mulai {{ $rental->start_date->translatedFormat('d M Y') }} · Selesai: {{ $rental->endLabel() }}@if ($rental->remainingLabel()) · {{ $rental->remainingLabel() }}@endif</p>
                 @if ($rental->room->roomType?->description)
                     <div class="tenant-hero-meta"><span><span class="material-symbols-outlined">check_circle</span> {{ $rental->room->roomType->description }}</span></div>
                 @endif
+                @if ($rental->room->facilityList())
+                    <ul class="facility-chips" style="margin-top:12px">
+                        @foreach ($rental->room->facilityList() as $facility)
+                            <li><span class="material-symbols-outlined">{{ $facility['icon'] }}</span>{{ $facility['label'] }}</li>
+                        @endforeach
+                    </ul>
+                @endif
             </div>
-            <div class="tenant-room-illustration"><span class="material-symbols-outlined">bed</span><small>Unit {{ $rental->room->room_number }}</small></div>
+            @php($cover = $rental->room->photos->first())
+            @if ($cover)
+                <div class="tenant-room-illustration has-photo"><img class="public-room-photo" src="{{ $cover->url() }}" alt="Foto Kamar {{ $rental->room->room_number }}"></div>
+            @else
+                <div class="tenant-room-illustration"><span class="material-symbols-outlined">bed</span><small>Unit {{ $rental->room->room_number }}</small></div>
+            @endif
         </section>
     @else
         <section class="panel settings-form" style="margin-bottom:20px">
@@ -41,7 +53,7 @@
             <div class="tenant-amount">{{ rupiah($totalDue) }} <small>Total tagihan</small></div>
             <div class="tenant-bill-lines">
                 @forelse ($outstanding->take(3) as $invoice)
-                    <span>{{ $invoice->billing_month->translatedFormat('F Y') }} · {{ $invoice->statusLabel() }} <b>{{ rupiah($invoice->totalDue()) }}</b></span>
+                    <span>{{ $invoice->label() }} · {{ $invoice->periodLabel() }} · {{ $invoice->statusLabel() }} <b>{{ rupiah($invoice->totalDue()) }}</b></span>
                     <span>Jatuh tempo <b>{{ $invoice->due_date->translatedFormat('d M Y') }}</b></span>
                 @empty
                     <span>Tidak ada tagihan tertunggak. Terima kasih!</span>
@@ -76,7 +88,7 @@
             @forelse ($announcements as $announcement)
                 <div class="tenant-notice">
                     <span class="announcement-icon blue"><span class="material-symbols-outlined">campaign</span></span>
-                    <div><span class="status-badge blue"><i></i>{{ $announcement->published_at->translatedFormat('d M Y') }}</span><h3>{{ $announcement->title }}</h3><p>{{ \Illuminate\Support\Str::limit($announcement->content, 220) }}</p></div>
+                    <div><span class="status-badge blue"><i></i>{{ $announcement->published_at->translatedFormat('d M Y') }}</span><h3>{{ $announcement->title }}</h3><p>{{ \Illuminate\Support\Str::limit($announcement->content, 220) }}</p>@include('components.announcement-media', ['compact' => true])</div>
                 </div>
             @empty
                 <p class="empty-note">Belum ada pengumuman.</p>

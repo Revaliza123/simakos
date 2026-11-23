@@ -16,6 +16,13 @@
         @endforeach
     </select>
 </label>
+<label>Siklus bayar sewa
+    <select name="billing_cycle">
+        @foreach (\App\Models\Rental::BILLING_CYCLES as $months => $label)
+            <option value="{{ $months }}" @selected((int) old('billing_cycle', 1) === $months)>{{ $label }}{{ $months > 1 ? ' · 1 tagihan = '.$months.'x sewa' : '' }}</option>
+        @endforeach
+    </select>
+</label>
 @if ($rooms->isEmpty())
     <p class="empty-note" style="grid-column:1/-1">Tidak ada kamar berstatus Tersedia saat ini.</p>
 @endif

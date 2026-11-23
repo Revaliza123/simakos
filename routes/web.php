@@ -32,11 +32,13 @@ Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->n
 */
 Route::prefix('admin')->middleware(['auth', 'role:admin'])->group(function (): void {
     Route::get('/overview', [DashboardController::class, 'overview'])->name('overview');
+    Route::redirect('/dashboard', '/admin/overview')->name('admin.dashboard');
 
     // UC-02 Kelola Master Kamar (FR-02)
     Route::get('/rooms', [RoomController::class, 'index'])->name('rooms');
     Route::get('/rooms/create', [RoomController::class, 'create'])->name('rooms.create');
     Route::post('/rooms', [RoomController::class, 'store'])->name('rooms.store');
+    Route::get('/rooms/{room}', [RoomController::class, 'show'])->name('rooms.show');
     Route::get('/rooms/{room}/edit', [RoomController::class, 'edit'])->name('rooms.edit');
     Route::put('/rooms/{room}', [RoomController::class, 'update'])->name('rooms.update');
     Route::delete('/rooms/{room}', [RoomController::class, 'destroy'])->name('rooms.destroy');
@@ -52,6 +54,7 @@ Route::prefix('admin')->middleware(['auth', 'role:admin'])->group(function (): v
     Route::get('/rentals', [RentalController::class, 'index'])->name('rentals.index');
     Route::get('/rentals/create', [RentalController::class, 'create'])->name('rentals.create');
     Route::post('/rentals', [RentalController::class, 'store'])->name('rentals.store');
+    Route::patch('/rentals/{rental}/billing-cycle', [RentalController::class, 'updateBillingCycle'])->name('rentals.billing-cycle');
     Route::patch('/rentals/{rental}/checkout', [RentalController::class, 'checkout'])->name('rentals.checkout');
     Route::get('/tenants/create', [RentalController::class, 'createTenant'])->name('tenants.create');
     Route::post('/tenants', [RentalController::class, 'storeTenant'])->name('tenants.store');
@@ -60,6 +63,11 @@ Route::prefix('admin')->middleware(['auth', 'role:admin'])->group(function (): v
     Route::get('/billing', [FinanceController::class, 'billing'])->name('billing');
     Route::get('/billing/create', [FinanceController::class, 'createPayment'])->name('billing.create');
     Route::post('/billing', [FinanceController::class, 'storePayment'])->name('billing.store');
+    Route::get('/billing/charges', [FinanceController::class, 'charges'])->name('billing.charges');
+    Route::get('/billing/charges/create', [FinanceController::class, 'createCharge'])->name('billing.charges.create');
+    Route::post('/billing/charges', [FinanceController::class, 'storeCharge'])->name('billing.charges.store');
+    Route::patch('/billing/charges/{charge}/stop', [FinanceController::class, 'stopCharge'])->name('billing.charges.stop');
+    Route::delete('/billing/charges/{charge}', [FinanceController::class, 'destroyCharge'])->name('billing.charges.destroy');
     Route::post('/billing/generate', [FinanceController::class, 'generateInvoices'])->name('billing.generate');
     Route::get('/billing/export', [FinanceController::class, 'exportBilling'])->name('billing.export');
     Route::patch('/billing/payments/{payment}/approve', [FinanceController::class, 'approvePayment'])->name('billing.payments.approve');

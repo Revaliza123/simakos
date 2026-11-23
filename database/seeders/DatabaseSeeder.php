@@ -30,6 +30,6 @@ class DatabaseSeeder extends Seeder
             );
         }
 
-        $this->call(FinanceDemoSeeder::class);
+        $this->call([FinanceDemoSeeder::class, RoomDetailsSeeder::class, ChargeDemoSeeder::class]);
     }
 }

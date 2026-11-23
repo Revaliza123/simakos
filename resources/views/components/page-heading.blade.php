@@ -17,8 +17,14 @@
         </div>
     @elseif ($activeMenu === 'billing')
         <div class="heading-actions">
-            <form method="POST" action="{{ route('billing.generate') }}">@csrf<input type="hidden" name="month" value="{{ ($month ?? now())->format('Y-m') }}"><button class="button button-secondary" type="submit"><span class="material-symbols-outlined">autorenew</span>Generate Tagihan</button></form>
-            <a class="button button-primary" href="{{ route('billing.create') }}"><span class="material-symbols-outlined">add</span>Catat Pembayaran</a>
+            @if (request()->routeIs('billing.charges*'))
+                <a class="button button-secondary" href="{{ route('billing') }}"><span class="material-symbols-outlined">arrow_back</span>Tagihan Sewa</a>
+                <a class="button button-primary" href="{{ route('billing.charges.create') }}"><span class="material-symbols-outlined">add</span>Buat Tagihan Lain</a>
+            @else
+                <a class="button button-secondary" href="{{ route('billing.charges') }}"><span class="material-symbols-outlined">request_quote</span>Tagihan Lain</a>
+                <form method="POST" action="{{ route('billing.generate') }}">@csrf<input type="hidden" name="month" value="{{ ($month ?? now())->format('Y-m') }}"><button class="button button-secondary" type="submit" title="Terbitkan tagihan sewa & tagihan lain untuk {{ ($month ?? now())->translatedFormat('F Y') }}"><span class="material-symbols-outlined">autorenew</span>Generate Tagihan {{ ($month ?? now())->translatedFormat('M Y') }}</button></form>
+                <a class="button button-primary" href="{{ route('billing.create') }}"><span class="material-symbols-outlined">add</span>Catat Pembayaran</a>
+            @endif
         </div>
     @elseif ($activeMenu === 'expenses')
         <a class="button button-primary" href="{{ route('expenses.create') }}"><span class="material-symbols-outlined">add</span>Catat Pengeluaran</a>

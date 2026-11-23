@@ -10,6 +10,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -126,12 +127,27 @@ class RentalController extends Controller
         return back()->with('status', "Check-out berhasil. Kamar {$rental->room->room_number} kembali Tersedia.");
     }
 
+    /**
+     * Ubah siklus bayar kontrak aktif. Berlaku untuk tagihan yang diterbitkan berikutnya;
+     * tagihan yang sudah terbit tidak diubah.
+     */
+    public function updateBillingCycle(Request $request, Rental $rental): RedirectResponse
+    {
+        abort_unless($rental->status === 'active', 422, 'Kontrak sudah tidak aktif.');
+
+        $validated = $request->validate(['billing_cycle' => ['required', Rule::in(array_keys(Rental::BILLING_CYCLES))]]);
+        $rental->update($validated);
+
+        return back()->with('status', "Siklus bayar {$rental->user?->name} diubah menjadi {$rental->billingCycleLabel()}. Berlaku untuk tagihan berikutnya.");
+    }
+
     private function rentalRules(): array
     {
         return [
             'room_id' => ['required', 'exists:rooms,id'],
             'start_date' => ['required', 'date'],
             'duration_months' => ['nullable', 'integer', 'min:1', 'max:60'],
+            'billing_cycle' => ['nullable', Rule::in(array_keys(Rental::BILLING_CYCLES))],
         ];
     }
 
@@ -174,6 +190,7 @@ class RentalController extends Controller
                 'room_id' => $room->id,
                 'start_date' => $start->toDateString(),
                 'end_date' => $months > 0 ? $start->copy()->addMonthsNoOverflow($months)->subDay()->toDateString() : null,
+                'billing_cycle' => (int) ($data['billing_cycle'] ?? 1),
                 'status' => 'active',
             ]);
 

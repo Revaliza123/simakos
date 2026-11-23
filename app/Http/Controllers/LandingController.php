@@ -10,7 +10,7 @@ class LandingController extends Controller
 {
     public function __invoke(): View
     {
-        $available = Room::with('roomType')->where('status', 'available')->orderBy('price')->orderBy('room_number')->get();
+        $available = Room::with(['roomType', 'photos'])->where('status', 'available')->orderBy('price')->orderBy('room_number')->get();
 
         return view('welcome', [
             'rooms' => $available,

@@ -18,11 +18,12 @@
                             @endif
                         </div>
                         <h3>{{ $announcement->title }}</h3>
-                        <p>{{ $announcement->content }}</p>
+                        <p style="white-space:pre-line">{{ $announcement->content }}</p>
+                        @include('components.announcement-media', ['compact' => true])
                         <small>Oleh {{ $announcement->creator?->name ?? 'Admin' }}</small>
                         <div class="card-actions">
-                            <a class="table-action" href="{{ route('announcements.edit', $announcement) }}">Ubah</a>
-                            <form method="POST" action="{{ route('announcements.destroy', $announcement) }}" onsubmit="return confirm('Hapus pengumuman ini?')">@csrf @method('DELETE')<button class="table-action danger-text" type="submit">Hapus</button></form>
+                            <a class="icon-action" href="{{ route('announcements.edit', $announcement) }}" title="Ubah pengumuman" aria-label="Ubah pengumuman"><span class="material-symbols-outlined">edit</span></a>
+                            <form method="POST" action="{{ route('announcements.destroy', $announcement) }}" onsubmit="return confirm('Hapus pengumuman ini beserta lampirannya?')">@csrf @method('DELETE')<button class="icon-action danger" type="submit" title="Hapus pengumuman" aria-label="Hapus pengumuman"><span class="material-symbols-outlined">delete</span></button></form>
                         </div>
                     </div>
                 </article>
