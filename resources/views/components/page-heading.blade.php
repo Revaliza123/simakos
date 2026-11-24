@@ -1,6 +1,6 @@
 <div class="page-heading">
     <div><span class="eyebrow">SIMAKOS / {{ strtoupper($pageTitles[$activeMenu][0]) }}</span><h1>{{ $pageTitles[$activeMenu][0] }}</h1><p>{{ $pageTitles[$activeMenu][1] }}</p></div>
-    @if ($activeMenu === 'rooms')
+    @if ($activeMenu === 'rooms' && request()->routeIs('rooms'))
         <div class="heading-actions">
             <a class="button button-secondary" href="{{ route('room-types.index') }}"><span class="material-symbols-outlined">category</span>Tipe Kamar</a>
             <a class="button button-primary" href="{{ route('rooms.create') }}"><span class="material-symbols-outlined">add</span>Tambah Kamar</a>
@@ -10,7 +10,7 @@
             <a class="button button-secondary" href="{{ route('rooms') }}"><span class="material-symbols-outlined">arrow_back</span>Unit Kamar</a>
             <a class="button button-primary" href="{{ route('room-types.create') }}"><span class="material-symbols-outlined">add</span>Tambah Tipe</a>
         </div>
-    @elseif ($activeMenu === 'rentals')
+    @elseif ($activeMenu === 'rentals' && request()->routeIs('rentals.index'))
         <div class="heading-actions">
             <a class="button button-secondary" href="{{ route('rentals.create') }}"><span class="material-symbols-outlined">key</span>Check-in Penghuni Terdaftar</a>
             <a class="button button-primary" href="{{ route('tenants.create') }}"><span class="material-symbols-outlined">person_add</span>Penghuni Baru</a>
