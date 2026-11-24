@@ -29,19 +29,30 @@ class RoomController extends Controller
             return redirect()->route('rooms.show', $request->integer('room'));
         }
 
-        $rooms = Room::with(['roomType', 'photos', 'activeRental.user'])
+        $allRooms = Room::with(['roomType', 'photos', 'activeRental.user'])
             ->withCount('rentals')
             ->orderBy('room_number')
             ->get();
 
+        $status = (string) $request->query('status', 'all');
+        $validStatuses = ['available', 'occupied', 'maintenance'];
+        if (! in_array($status, $validStatuses, true)) {
+            $status = 'all';
+        }
+
+        $rooms = $status === 'all'
+            ? $allRooms
+            : $allRooms->where('status', $status)->values();
+
         return view('dashboard.rooms', [
             ...$this->sharedData('rooms'),
             'rooms' => $rooms,
+            'status' => $status,
             'counts' => [
-                'all' => $rooms->count(),
-                'available' => $rooms->where('status', 'available')->count(),
-                'occupied' => $rooms->where('status', 'occupied')->count(),
-                'maintenance' => $rooms->where('status', 'maintenance')->count(),
+                'all' => $allRooms->count(),
+                'available' => $allRooms->where('status', 'available')->count(),
+                'occupied' => $allRooms->where('status', 'occupied')->count(),
+                'maintenance' => $allRooms->where('status', 'maintenance')->count(),
             ],
         ]);
     }

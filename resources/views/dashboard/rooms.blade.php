@@ -5,10 +5,10 @@
     @include('components.form-errors')
     <div class="toolbar">
         <div class="tabs">
-            <button class="tab active" type="button" data-filter="all">Semua <b>{{ $counts['all'] }}</b></button>
-            <button class="tab" type="button" data-filter="available">Tersedia <b>{{ $counts['available'] }}</b></button>
-            <button class="tab" type="button" data-filter="occupied">Terisi <b>{{ $counts['occupied'] }}</b></button>
-            <button class="tab" type="button" data-filter="maintenance">Perbaikan <b>{{ $counts['maintenance'] }}</b></button>
+            <a class="tab {{ $status === 'all' ? 'active' : '' }}" href="{{ route('rooms') }}">Semua <b>{{ $counts['all'] }}</b></a>
+            <a class="tab {{ $status === 'available' ? 'active' : '' }}" href="{{ route('rooms', ['status' => 'available']) }}">Tersedia <b>{{ $counts['available'] }}</b></a>
+            <a class="tab {{ $status === 'occupied' ? 'active' : '' }}" href="{{ route('rooms', ['status' => 'occupied']) }}">Terisi <b>{{ $counts['occupied'] }}</b></a>
+            <a class="tab {{ $status === 'maintenance' ? 'active' : '' }}" href="{{ route('rooms', ['status' => 'maintenance']) }}">Perbaikan <b>{{ $counts['maintenance'] }}</b></a>
         </div>
         <a class="button button-secondary" href="{{ route('rentals.index') }}"><span class="material-symbols-outlined">history</span>Riwayat Sewa</a>
     </div>

@@ -154,4 +154,20 @@ class RoomManagementTest extends TestCase
 
         $this->actingAs($tenant)->get(route('rooms.show', $room))->assertForbidden();
     }
+
+    public function test_room_status_filters_only_show_matching_rooms(): void
+    {
+        Room::create(['room_number' => 'A101', 'room_type_id' => $this->type->id, 'price' => 1500000, 'status' => 'available']);
+        Room::create(['room_number' => 'A102', 'room_type_id' => $this->type->id, 'price' => 1500000, 'status' => 'occupied']);
+        Room::create(['room_number' => 'A103', 'room_type_id' => $this->type->id, 'price' => 1500000, 'status' => 'maintenance']);
+
+        $this->actingAs($this->admin);
+
+        $this->get(route('rooms', ['status' => 'available']))
+            ->assertOk()->assertSee('Kamar A101')->assertDontSee('Kamar A102')->assertDontSee('Kamar A103');
+        $this->get(route('rooms', ['status' => 'occupied']))
+            ->assertOk()->assertSee('Kamar A102')->assertDontSee('Kamar A101')->assertDontSee('Kamar A103');
+        $this->get(route('rooms', ['status' => 'maintenance']))
+            ->assertOk()->assertSee('Kamar A103')->assertDontSee('Kamar A101')->assertDontSee('Kamar A102');
+    }
 }
